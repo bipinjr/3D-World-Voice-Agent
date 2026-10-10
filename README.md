@@ -3,10 +3,38 @@
 Visitors talk to **NOVA**, an AI co-pilot that talks back. They use their voice to build a world across **3 levels**. One visitor takes about 6–10 minutes.
 
 ## Run it
-1. Double-click **`start.bat`** (needs Python). Chrome opens at `http://localhost:8080`.
-2. Pick a world, then click **Start mission**. Click **Allow** when Chrome asks for the microphone.
+**Live:** https://3d-world-voice-agent.vercel.app. Open it in Chrome and click **Allow** for the microphone.
 
-Use **Google Chrome or Edge** with **internet**. Chrome's speech recognition runs on Google's servers.
+**Offline / expo laptop:** double-click **`start.bat`**. It needs Node.js 18 or newer and installs, builds and opens the app the first time.
+
+Developer commands:
+```bash
+npm install      # once
+npm run dev      # live-reload development server
+npm test         # language-understanding unit tests
+npm run build    # production build into dist/
+```
+
+Voice recognition needs **Google Chrome or Edge** with **internet**. Everything else works offline once the page has loaded.
+
+## Project structure
+| File | What it does |
+|---|---|
+| `src/main.js` | Start-up, crash-proof render loop, shader warm-up, auto quality |
+| `src/game.js` | Levels, missions, scoring, NOVA's replies and follow-up questions |
+| `src/nlu.js` | Language understanding: sentence → action + details (unit-tested) |
+| `src/voice.js` | Microphone (speech recognition) and NOVA's voice (speech synthesis) |
+| `src/home.js` | Level 1 island, rocket, weather, the 4 world themes |
+| `src/space.js` | Levels 2–3: planets, moons, portal, spaceships, black hole, warp |
+| `src/scene.js`, `src/ui.js` | 3D renderer and camera; on-screen panels |
+
+## Reliability
+- One error never freezes the world. It is skipped and shown as a small "glitch recovered" badge; tap the badge to copy the details.
+- If the 3D view keeps failing for 5 seconds, or the GPU resets, the app restarts itself.
+- Shaders compile while the start screen is showing, so effects never stall mid-game.
+- Memory is freed when objects are removed. "Next explorer" reloads the page for a fully clean start and keeps the chosen world.
+- On slow laptops the resolution drops automatically.
+- Voice is protected against double starts, ignored permission prompts, missing callbacks, NOVA hearing herself, and unsupported browsers.
 
 ## Worlds (choose on the start screen)
 🚀 Space Lab · 🌆 Cyberpunk Bengaluru · 🐠 Underwater Base · 🏙️ Smart City

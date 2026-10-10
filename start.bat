@@ -1,5 +1,6 @@
 @echo off
 cd /d "%~dp0"
-echo Starting Command the Future at http://localhost:8080  (close this window to stop)
-start "" http://localhost:8080
-python -m http.server 8080
+if not exist node_modules (echo Installing... & call npm install)
+call npm run build
+echo Command the Future is running. Close this window to stop.
+call npm run preview
