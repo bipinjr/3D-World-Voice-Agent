@@ -5,6 +5,11 @@ import { rand, pick, std, canvasTex } from './util.js';
 
 export const lab = new THREE.Group(); scene.add(lab);
 const islandMat = std('#1d2b4f'), rimMat = new THREE.MeshBasicMaterial({ color: '#38e1ff' });
+const gridMat = new THREE.MeshBasicMaterial({ color: '#38e1ff', transparent: true, opacity: 0.32, blending: THREE.AdditiveBlending, depthWrite: false, map: canvasTex(512, 512, (g, w) => {
+  g.strokeStyle = '#fff'; g.lineWidth = 2;
+  for (let r = 40; r < w / 2; r += 36) { g.globalAlpha = 0.5 + (r / w); g.beginPath(); g.arc(w / 2, w / 2, r, 0, Math.PI * 2); g.stroke(); }
+  g.globalAlpha = 0.35; for (let i = 0; i < 24; i++) { const a = i / 24 * Math.PI * 2; g.beginPath(); g.moveTo(w / 2 + Math.cos(a) * 40, w / 2 + Math.sin(a) * 40); g.lineTo(w / 2 + Math.cos(a) * w / 2, w / 2 + Math.sin(a) * w / 2); g.stroke(); }
+}) });
 const skySun = new THREE.Mesh(new THREE.SphereGeometry(5, 32, 32), new THREE.MeshBasicMaterial({ color: '#ffd76a', fog: false }));
 const skyMoon = new THREE.Mesh(new THREE.SphereGeometry(3.5, 32, 32), new THREE.MeshBasicMaterial({ color: '#dfe6ff', fog: false }));
 skySun.position.set(-40, 32, -60); skyMoon.position.copy(skySun.position);
@@ -14,6 +19,8 @@ lab.add(skySun, skyMoon);
   const rock = new THREE.Mesh(new THREE.ConeGeometry(6.5, 5, 24), std('#141c33')); rock.rotation.x = Math.PI; rock.position.y = -3.9;
   const rim = new THREE.Mesh(new THREE.TorusGeometry(9, 0.08, 8, 96), rimMat); rim.rotation.x = Math.PI / 2;
   lab.add(island, rock, rim);
+  // hologram grid on the ground, tinted with the world colour
+  const grid = new THREE.Mesh(new THREE.RingGeometry(0.6, 8.9, 96), gridMat); grid.rotation.x = -Math.PI / 2; grid.position.y = 0.02; lab.add(grid);
 }
 
 // ---------- rocket
@@ -146,6 +153,15 @@ export const THEMES = {
   smart: { name: 'Smart City', emoji: '🏙️', night: '#0a1228', day: '#7cc4ff', storm: '#3a4a66', ground: '#2e5a3a', rim: '#7cff8a', rain: '#cfe8ff', space2: '#050c1f', space3: '#0f0a24', props: buildSmart(),
     rainMsg: 'Rain is falling! The smart city is saving rainwater 💧', dayMsg: 'Good morning! The solar panels are charging ☀️', nightMsg: 'Night mode. Smart streetlights switched on! 🌙' },
 };
+// How each world looks and sounds in levels 2–3 (space), so the chosen world carries through the whole game
+Object.assign(THEMES.space, { hero: 'Kelly', hello: 'The stars look amazing tonight.', star: '#ffd27a', glow: '#ffb347', tint: '#ffffff',
+  nebula: ['#ff4fd8', '#38e1ff', '#7a5cff', '#ff7a3d'], names: ['Kelly', 'Zorbit', 'Nova', 'Kepler', 'Astra', 'Vyom', 'Chandra', 'Pixelon', 'Tara', 'Glorp'] });
+Object.assign(THEMES.cyber, { hero: 'Namma', hello: 'Namma Bengaluru never sleeps!', star: '#ff8ae0', glow: '#ff4fd8', tint: '#ffb0ee',
+  nebula: ['#ff4fd8', '#ff2d95', '#7a5cff', '#38e1ff'], names: ['Namma', 'Koramangala', 'Indiranagar', 'Whitefield', 'Jayanagar', 'Hebbal', 'Malleshwaram', 'Silk Board', 'MG Road'] });
+Object.assign(THEMES.ocean, { hero: 'Nemo', hello: 'Watch out for the fish!', star: '#b8f8ff', glow: '#3de8ff', tint: '#8ff0ff',
+  nebula: ['#3de8ff', '#1fa3c4', '#46e38a', '#7a5cff'], names: ['Nemo', 'Coral', 'Pearl', 'Marina', 'Kelp', 'Bubbles', 'Tide', 'Lagoon', 'Dory'] });
+Object.assign(THEMES.smart, { hero: 'Byte', hello: 'Everything here runs on AI and clean energy.', star: '#e4ffd8', glow: '#7cff8a', tint: '#c6ffd2',
+  nebula: ['#7cff8a', '#38e1ff', '#ffe14d', '#5aa2ff'], names: ['Byte', 'Solaris', 'Pixel', 'Volt', 'Quantum', 'Nimbus', 'Echo', 'Grid', 'Cloud'] });
 Object.values(THEMES).forEach(th => lab.add(th.props));
 
 export const home = { theme: THEMES.space, themeKey: 'space', rk: { phase: 'idle', t: 0, v: 0 }, rainOn: false, rainLevel: 0, rainTimer: 0, flash: 0, isDay: false, dayT: 0 };
@@ -154,7 +170,7 @@ export const home = { theme: THEMES.space, themeKey: 'space', rk: { phase: 'idle
 export function applyHomeTheme(key) {
   const th = THEMES[key] || THEMES.space;
   home.theme = th; home.themeKey = THEMES[key] ? key : 'space';
-  islandMat.color.set(th.ground); rimMat.color.set(th.rim); rain.material.color.set(th.rain);
+  islandMat.color.set(th.ground); rimMat.color.set(th.rim); gridMat.color.set(th.rim); rain.material.color.set(th.rain);
   for (const k in THEMES) THEMES[k].props.visible = THEMES[k] === th;
   skySun.visible = skyMoon.visible = !th.up;
   return th;

@@ -8,6 +8,7 @@ let rec = null, h = {}, starting = false, startTimer = 0, gotResult = false, err
 
 export function initVoice(handlers) {
   h = handlers;
+  pickVoice(); // voices may already be loaded: tell the UI
   if (!SR) return;
   try {
     rec = new SR();
@@ -43,12 +44,33 @@ export const stopListening = () => { try { rec?.abort(); } catch { /* idle */ } 
 
 // ---------- NOVA's voice
 let novaVoice = null, speakSeq = 0;
+// Best-sounding voices first: neural "Natural" voices (Edge), then Google's, then the rest
+const VOICE_KEY = 'ctf.voice';
+const RANK = [
+  v => /en-IN/i.test(v.lang) && /natural|neural/i.test(v.name),
+  v => /natural|neural/i.test(v.name) && /aria|jenny|ava|emma|sonia|libby|natasha|michelle|clara|neerja/i.test(v.name),
+  v => /natural|neural/i.test(v.name),
+  v => /Google UK English Female/i.test(v.name),
+  v => /Google US English/i.test(v.name),
+  v => /en-IN/i.test(v.lang) && /heera|neerja|female/i.test(v.name), // NOVA is female
+  v => /Zira|Aria|Jenny|Samantha/i.test(v.name),
+  v => /en-IN/i.test(v.lang),
+  v => /Zira|Heera|Aria|Jenny|Samantha|Karen|Moira|Tessa/i.test(v.name),
+  v => true,
+];
+export const englishVoices = () => (synth?.getVoices() || []).filter(v => /^en/i.test(v.lang));
+export const isNatural = v => /natural|neural|google/i.test(v?.name || '');
 function pickVoice() {
-  const vs = synth?.getVoices() || [];
-  novaVoice = vs.find(v => /en-IN/i.test(v.lang) && /female|heera|neerja/i.test(v.name))
-    || vs.find(v => /Google UK English Female|Microsoft (Aria|Jenny|Zira)|Samantha/i.test(v.name))
-    || vs.find(v => /en-IN/i.test(v.lang)) || vs.find(v => /^en/i.test(v.lang)) || null;
+  const vs = englishVoices(); let saved = null;
+  try { saved = localStorage.getItem(VOICE_KEY); } catch { /* storage blocked */ }
+  novaVoice = vs.find(v => v.name === saved) || RANK.map(f => vs.find(f)).find(Boolean) || null;
+  safe(h.onVoices);
 }
+export function setVoiceName(name) {
+  novaVoice = englishVoices().find(v => v.name === name) || novaVoice;
+  try { localStorage.setItem(VOICE_KEY, name); } catch { /* storage blocked */ }
+}
+export const currentVoice = () => novaVoice?.name || '';
 if (synth) { pickVoice(); synth.addEventListener?.('voiceschanged', pickVoice); }
 
 // onDone fires exactly once, when NOVA finishes (or immediately if muted). Never fires if superseded.
@@ -61,7 +83,8 @@ export function speak(text, onDone) {
     synth.cancel();
     const u = new SpeechSynthesisUtterance(clean);
     if (novaVoice) u.voice = novaVoice;
-    u.lang = novaVoice?.lang || 'en-IN'; u.rate = 1.05; u.pitch = 1.1;
+    u.lang = novaVoice?.lang || 'en-IN';
+    const natural = isNatural(novaVoice); u.rate = natural ? 1.02 : 1.05; u.pitch = natural ? 1.0 : 1.1; // neural voices sound best untouched
     u.onstart = () => { if (seq === speakSeq) safe(h.onSpeaking, true); };
     u.onend = finish;
     u.onerror = () => { if (seq === speakSeq) finish(); };

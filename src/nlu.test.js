@@ -63,6 +63,17 @@ test('spaceships and counts', () => {
   assert.equal(parse('remove the rain', L(1)).intent, 'rainOff');
 });
 
+test('travel between worlds', () => {
+  assert.deepEqual([parse('take me to underwater base', L(2)).intent, parse('take me to underwater base', L(2)).world], ['travel', 'ocean']);
+  assert.equal(parse('go to cyberpunk bengaluru', L(1)).world, 'cyber');
+  assert.equal(parse('switch to the smart city', L(3)).world, 'smart');
+  assert.equal(parse('take us to another world', L(1)).world, null);
+  assert.equal(parse('take us to another world', L(1)).intent, 'travel');
+  assert.equal(parse('go through the portal', L(3)).intent, 'travel');
+  assert.equal(parse('open the portal', L(3)).intent, 'portal');
+  assert.equal(parse('create a new world', L(2)).intent, 'createPlanet');
+});
+
 test('level 3 + misc', () => {
   assert.equal(parse('open the portal', L(3)).intent, 'portal');
   assert.equal(parse('close the portal', L(3)).intent, 'portalClose');

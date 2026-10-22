@@ -1,6 +1,6 @@
 import './style.css';
 import * as THREE from 'three';
-import { renderer, scene, camera, view, NIGHT, DAY, STORM, WHITE, SPACE_BG, bg, bgSmooth, bgTarget, hemi, sunLight, starLight, stars, lowerQuality } from './scene.js';
+import { sky, updateSparkles, renderer, composer, scene, camera, view, NIGHT, DAY, STORM, WHITE, SPACE_BG, bg, bgSmooth, bgTarget, hemi, sunLight, starLight, stars, lowerQuality } from './scene.js';
 import { home, updateHome } from './home.js';
 import { updateSpace, warmupGroup } from './space.js';
 import { state, LEVELS, bindUI } from './game.js';
@@ -24,6 +24,9 @@ function frame(dt, t) {
   if (inSpace) bgTarget.copy(SPACE_BG[L]); else bgTarget.copy(NIGHT).lerp(DAY, home.dayT).lerp(STORM, home.rainLevel * 0.6);
   bgSmooth.lerp(bgTarget, Math.min(1, dt * 2));
   bg.copy(bgSmooth).lerp(WHITE, home.flash * 0.35); scene.fog.color.copy(bg);
+  const u = sky.material.uniforms;
+  u.top.value.copy(bg).multiplyScalar(0.45); u.bottom.value.copy(bg).multiplyScalar(1.35); u.glow.value.set(home.theme.rim);
+  updateSparkles(dt, t);
   stars.material.opacity = inSpace ? 1 : (1 - home.dayT) * (1 - home.rainLevel * 0.7);
   hemi.intensity = inSpace ? 0.45 : (0.6 + 0.9 * home.dayT) * (1 - 0.4 * home.rainLevel) + home.flash * 3;
   sunLight.intensity = inSpace ? 0.2 : (0.7 + 1.3 * home.dayT) * (1 - 0.5 * home.rainLevel);
@@ -37,7 +40,7 @@ function frame(dt, t) {
   if (!reduceMotion && view.shake > 0.001) camera.position.add(shakeVec.set((Math.random() - 0.5) * view.shake, (Math.random() - 0.5) * view.shake, 0));
   view.shake *= Math.pow(0.1, dt);
   camera.lookAt(0, view.y, 0);
-  if (!warming) renderer.render(scene, camera);
+  if (!warming) composer.render(dt);
 }
 
 // The loop can never die: one bad frame is reported and skipped.

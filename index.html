@@ -23,6 +23,8 @@
     <div class="stat"><span>Score</span><b id="score">0</b></div>
     <div class="stat"><span>Streak</span><b id="streak">🔥 0</b></div>
     <div class="stat wide"><span>Missions <i id="doneCount">0/4</i></span><div class="bar"><div id="bar"></div></div></div>
+    <button id="viewBtn" class="icon-btn" aria-label="Hide panels to view the whole world" aria-pressed="false" title="View world (H)">👁</button>
+    <button id="worldBtn" class="icon-btn" aria-label="Travel to another world" title="Travel to another world">🚀</button>
     <button id="soundBtn" class="icon-btn" aria-label="Turn NOVA's voice on or off" title="NOVA voice on/off">🔊</button>
   </div>
 </header>
@@ -32,6 +34,7 @@
   <p class="sub">Say the words — or tap a card</p>
   <div id="cards"></div>
   <p class="free" id="freeTip"></p>
+  <button id="finishBtn" class="ghost" hidden>🏁 I'm done: show my result</button>
   <button id="resetBtn" class="ghost">↺ Reset this world</button>
 </aside>
 
@@ -49,28 +52,34 @@
   <p class="tip">💡 You don't need exact sentences. Talk normally, like <q>make a huge pink planet called Bob</q>.</p>
 </nav>
 
+<div id="cbar" class="cbar hidden" aria-live="polite">
+  <span class="ctime">⏱ <b id="cTime">90</b></span>
+  <span class="cprompt" id="cPrompt">Get ready…</span>
+  <span class="ccombo" id="cCombo"></span>
+</div>
+
 <div id="toast" role="status" aria-live="polite"></div>
 
 <section class="console">
   <div id="banner" role="alert"></div>
   <div class="talk glass">
-    <div class="label" id="heardLabel">🧑 You said</div>
-    <div id="heard" class="heard-text interim">Tap the mic and talk to NOVA…</div>
+    <div class="you"><span class="label" id="heardLabel">🧑 You said</span><div id="heard" class="heard-text interim">Tap the orb and talk to NOVA…</div></div>
     <div id="ai" class="ai-chip">🧠 Waiting for your voice</div>
-    <div class="nova" id="nova"><span class="avatar">🤖</span><div><span class="label">NOVA · AI co-pilot</span><p id="novaText" aria-live="polite">Hi! I'm NOVA.</p></div><span class="eq"><i></i><i></i><i></i><i></i></span></div>
+    <div class="nova" id="nova"><span class="avatar orb" aria-hidden="true"></span><div><span class="label">NOVA · AI co-pilot</span><p id="novaText" aria-live="polite">Hi! I'm NOVA.</p></div><span class="eq"><i></i><i></i><i></i><i></i></span></div>
   </div>
   <div class="mic-row">
-    <div class="mic-hint" style="text-align:right">Tap the mic<br>or press <kbd>Space</kbd></div>
-    <button id="mic" class="mic" aria-label="Start listening" aria-pressed="false">
-      <span class="ring"></span><span class="ring r2"></span>
-      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
-    </button>
-    <div class="mic-hint" id="micHint">then speak<br>clearly 🗣️</div>
+    <form id="typeForm" class="type" autocomplete="off">
+      <input id="typeInput" placeholder="Type to NOVA… or tap the orb to talk" aria-label="Type a command">
+      <button type="submit" aria-label="Send">➤</button>
+    </form>
+    <div class="mic-wrap">
+      <div class="mic-hint" id="micHint">then speak<br>clearly 🗣️</div>
+      <button id="mic" class="mic orb" aria-label="Start listening" aria-pressed="false">
+        <span class="ring"></span><span class="ring r2"></span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V5a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z"/></svg>
+      </button>
+    </div>
   </div>
-  <form id="typeForm" class="type" autocomplete="off">
-    <input id="typeInput" placeholder="⌨️ Too noisy? Type to NOVA here" aria-label="Type a command">
-    <button type="submit">Send</button>
-  </form>
 </section>
 
 <div id="intro" class="overlay">
@@ -86,14 +95,35 @@
       <button class="theme" data-theme="ocean"><span>🐠</span>Underwater Base</button>
       <button class="theme" data-theme="smart"><span>🏙️</span>Smart City</button>
     </div>
-    <p class="pick-title">2️⃣ Beat 3 levels</p>
-    <div class="steps3">
-      <div><span>🏠</span><b>Level 1</b><small>Your home base</small></div>
-      <div><span>🪐</span><b>Level 2</b><small>Solar System Builder</small></div>
-      <div><span>🌌</span><b>Level 3</b><small>Galaxy Commander</small></div>
+    <p class="pick-title">2️⃣ Choose a mode</p>
+    <div class="modes">
+      <button class="mode on" data-mode="story"><span>🎯</span>Story<small>3 levels</small></button>
+      <button class="mode" data-mode="challenge"><span>⚡</span>Speed Challenge<small>90 seconds</small></button>
+      <button class="mode" data-mode="free"><span>🎨</span>Free Play<small>12 powers</small></button>
+      <button class="mode" data-mode="learn"><span>🧠</span>Learn AI<small>NOVA explains</small></button>
     </div>
+    <p class="mode-desc" id="modeDesc">Guided missions across 3 levels: your world, a solar system and the galaxy.</p>
     <button id="startBtn" class="cta">🚀 Start mission</button>
     <p class="note">Tap the mic, speak, and watch the world change. NOVA talks back!<br>Best in Google Chrome or Edge. No mic? Tap the cards or type.</p>
+    <div class="voice-row" id="voiceRow" hidden>
+      <label for="voiceSel">🔊 NOVA's voice</label>
+      <select id="voiceSel"></select>
+      <button id="voiceTest" class="ghost-btn small" type="button">▶ Test</button>
+    </div>
+    <p class="top-strip" id="topStrip" hidden></p>
+  </div>
+</div>
+
+<div id="attract" class="attract hidden" aria-hidden="true">
+  <div class="attract-cap" id="attractCap">“Launch the rocket”</div>
+  <div class="attract-cta">👆 Tap anywhere to play</div>
+</div>
+
+<div id="idle" class="overlay hidden">
+  <div class="panel glass">
+    <div class="big-title">Still there?</div>
+    <p class="lead">Restarting for the next explorer in <b id="idleCount">10</b>…</p>
+    <br><button class="cta" id="idleBtn">✋ I'm still playing</button>
   </div>
 </div>
 
@@ -120,16 +150,24 @@
 
 <div id="complete" class="overlay hidden">
   <div class="panel glass">
-    <div class="kicker">All 3 levels complete</div>
+    <div class="kicker" id="cKicker">All 3 levels complete</div>
     <div class="badge" id="badgeIcon">🏅</div>
     <div class="big-title" id="rank">Star Captain</div>
-    <p class="lead">You built a universe using only your voice and AI!</p>
+    <p class="lead" id="cLead">You built a universe using only your voice and AI!</p>
     <div class="final-stats">
       <div><span>Score</span><b id="fScore">0</b></div>
       <div><span>Time</span><b id="fTime">0:00</b></div>
-      <div><span>Best streak</span><b id="fStreak">0</b></div>
+      <div><span id="fStreakLabel">Best streak</span><b id="fStreak">0</b></div>
     </div>
-    <button id="againBtn" class="cta">▶ Next explorer</button>
+    <form id="nameForm" class="name-form" autocomplete="off">
+      <input id="nameInput" maxlength="20" placeholder="Type your name for the leaderboard" aria-label="Your name">
+      <button type="submit" class="cta small">🏆 Save</button>
+    </form>
+    <ol class="board" id="board"></ol>
+    <div class="end-actions">
+      <button id="certBtn" class="ghost-btn">📜 Download certificate</button>
+      <button id="againBtn" class="cta">▶ Next explorer</button>
+    </div>
   </div>
 </div>
 

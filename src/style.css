@@ -185,3 +185,141 @@ kbd{border:1px solid var(--line);border-radius:6px;padding:1px 6px;background:rg
 
 /* error reporting */
 .err-badge{position:fixed;left:16px;bottom:16px;z-index:12;padding:6px 12px;border-radius:10px;border:1px solid var(--amber);background:rgba(40,30,0,.85);color:#ffe3a1;font-size:12px;cursor:pointer}
+
+/* leaderboard + certificate */
+.name-form{display:flex;gap:8px;margin:4px 0 14px}
+.name-form input{flex:1;padding:12px 16px;border-radius:14px;border:1px solid var(--line);background:rgba(255,255,255,.06);font-size:16px;outline:none}
+.name-form input:focus{border-color:var(--cyan)}
+.cta.small{font-size:16px;padding:12px 22px}
+.board{list-style:none;text-align:left;margin:0 auto 18px;max-width:440px;counter-reset:r}
+.board li{counter-increment:r;display:flex;gap:10px;align-items:center;padding:7px 12px;border-radius:10px;font-size:15px}
+.board li::before{content:counter(r);font-family:Orbitron,sans-serif;width:22px;color:var(--muted)}
+.board li:nth-child(1)::before{content:"🥇"}.board li:nth-child(2)::before{content:"🥈"}.board li:nth-child(3)::before{content:"🥉"}
+.board li b{margin-left:auto;font-family:Orbitron,sans-serif;color:var(--cyan)}
+.board li small{color:var(--muted)}
+.board li.me{background:rgba(255,79,216,.16);border:1px solid var(--pink)}
+.end-actions{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;align-items:center}
+.ghost-btn{padding:14px 22px;border-radius:99px;border:1px solid var(--line);background:rgba(255,255,255,.05);font-weight:600;cursor:pointer}
+.ghost-btn:hover{border-color:var(--cyan)}
+.top-strip{margin-top:10px;font-size:14px;color:var(--amber)}
+
+/* attract mode: the world plays itself until someone taps */
+.attract{position:fixed;inset:0;z-index:11;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:12vh;gap:18px;cursor:pointer;transition:opacity .6s;background:radial-gradient(ellipse at center,transparent 40%,rgba(7,11,26,.7))}
+.attract.hidden{opacity:0;pointer-events:none}
+.attract-cap{font-family:Orbitron,sans-serif;font-weight:800;font-size:clamp(28px,5vw,56px);text-align:center;background:linear-gradient(90deg,var(--cyan),var(--pink));-webkit-background-clip:text;background-clip:text;color:transparent;animation:capin .6s ease}
+.attract-cta{font-size:22px;font-weight:700;padding:14px 30px;border-radius:99px;background:rgba(10,18,40,.8);border:1px solid var(--cyan);animation:breathe 1.6s ease-in-out infinite}
+@keyframes capin{from{opacity:0;transform:translateY(20px)}}
+@keyframes breathe{50%{transform:scale(1.06);box-shadow:0 0 30px rgba(56,225,255,.5)}}
+
+/* modes */
+.modes{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px}
+.mode{padding:12px 8px;border-radius:14px;border:2px solid var(--line);background:rgba(255,255,255,.04);cursor:pointer;font-weight:600;font-size:14px;transition:all .2s}
+.mode span{display:block;font-size:30px;margin-bottom:4px}
+.mode small{display:block;color:var(--muted);font-weight:400;font-size:12px}
+.mode:hover{border-color:var(--cyan)}
+.mode.on{border-color:var(--cyan);background:rgba(56,225,255,.12);box-shadow:0 0 20px rgba(56,225,255,.3)}
+.mode-desc{margin:10px 0 20px;color:var(--muted);font-size:15px;min-height:22px}
+@media (max-width:760px){.modes{grid-template-columns:1fr 1fr}}
+
+/* speed challenge bar */
+.cbar{position:fixed;top:96px;left:50%;transform:translateX(-50%);z-index:6;display:flex;align-items:center;gap:18px;padding:12px 26px;border-radius:99px;background:rgba(10,18,40,.88);border:2px solid var(--amber);box-shadow:0 0 30px rgba(255,201,77,.35);transition:opacity .3s;max-width:calc(100vw - 32px)}
+.cbar.hidden{opacity:0;pointer-events:none}
+.ctime{font-family:Orbitron,sans-serif;font-size:22px;color:var(--amber)}
+.cprompt{font-size:26px;font-weight:700;white-space:nowrap;animation:capin .4s ease}
+.ccombo{font-weight:700;color:var(--pink)}
+body.challenge #toast{top:170px}
+@media (max-width:760px){.cbar{top:150px;gap:10px;padding:8px 16px}.cprompt{font-size:17px;white-space:normal}.ctime{font-size:17px}}
+
+.lvl b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:34vw}
+
+/* ================= VISUAL OVERHAUL ================= */
+/* see-through sci-fi glass with a neon gradient edge, so the 3D world stays visible */
+.glass{background:linear-gradient(180deg,rgba(16,26,58,.5),rgba(6,12,30,.5));border:1px solid rgba(140,200,255,.12);box-shadow:0 12px 40px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.07);backdrop-filter:blur(10px) saturate(1.3);-webkit-backdrop-filter:blur(10px) saturate(1.3)}
+.glass::after{content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;background:linear-gradient(135deg,rgba(56,225,255,.8),transparent 26%,transparent 74%,rgba(255,79,216,.75));-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude}
+.talk,.panel{position:relative}
+
+/* header: slimmer */
+.top{padding:8px 16px}
+.logo{width:40px;height:40px}
+
+/* side panels hug their content instead of filling the screen height */
+.missions{width:268px;top:92px;bottom:auto;max-height:calc(100vh - 110px);padding:14px;gap:8px;transition:opacity .4s,transform .4s}
+.missions .ghost{margin-top:4px}
+.card{position:relative;padding:8px 10px;background:rgba(255,255,255,.035)}
+.card .em{width:38px;height:38px;font-size:22px}
+.card.next{border-color:var(--cyan);background:rgba(56,225,255,.1);box-shadow:0 0 18px rgba(56,225,255,.22)}
+.card.next::after{content:"NEXT";position:absolute;top:-8px;right:10px;font:700 10px Orbitron,sans-serif;letter-spacing:.12em;padding:2px 8px;border-radius:99px;background:var(--cyan);color:#04121f}
+.pipeline{width:208px;top:92px;padding:14px;transition:opacity .4s,transform .4s}
+.step{padding:7px 8px}
+.step small{display:none}
+.step.active small{display:block}
+.arrow{font-size:10px}
+.tip{font-size:12px}
+
+/* compact chat console: the world shows above it */
+.console{width:min(520px,calc(100vw - 32px));gap:8px;bottom:14px}
+.talk{padding:10px 14px}
+.you{display:flex;flex-direction:column;align-items:center}
+.heard-text{font-size:18px;min-height:24px}
+.ai-chip{margin-top:4px;font-size:13px;padding:4px 12px}
+.nova{margin-top:8px;padding:8px 10px;gap:10px}
+.nova p{font-size:15px}
+.mic-row{width:100%;display:flex;align-items:center;gap:12px}
+.type{flex:1}
+.type input{height:50px;border-radius:99px;padding:0 20px;font-size:15px;background:rgba(10,18,40,.6);backdrop-filter:blur(8px)}
+.type button{width:50px;height:50px;padding:0;border-radius:50%;font-size:18px;background:rgba(56,225,255,.18)}
+.mic-wrap{position:relative;flex:none}
+.mic-hint{display:none}
+.mic-hint.asking{display:block;position:absolute;bottom:calc(100% + 10px);right:-6px;white-space:nowrap;text-align:center;font-size:13px;padding:6px 12px;border-radius:12px;background:rgba(40,28,0,.9);border:1px solid var(--amber);max-width:none;animation:capin .3s ease}
+.mic-hint.asking br{display:none}
+
+/* NOVA + the mic become glowing AI orbs */
+.orb{border-radius:50%;background:radial-gradient(circle at 34% 28%,#fff 0 5%,#a9f7ff 12%,#2f8bff 42%,#4a1fb0 72%,#1a0b4a 100%);box-shadow:0 0 22px rgba(56,225,255,.55),0 0 60px rgba(122,92,255,.35),inset 0 -6px 16px rgba(0,0,0,.35)}
+.orb::before{content:"";position:absolute;inset:-5px;border-radius:50%;background:conic-gradient(from 0deg,transparent 0 15%,var(--cyan) 30%,transparent 45% 60%,var(--pink) 78%,transparent 92%);-webkit-mask:radial-gradient(circle,transparent 63%,#000 65%);mask:radial-gradient(circle,transparent 63%,#000 65%);animation:spin 3.5s linear infinite;pointer-events:none}
+.mic{width:76px;height:76px}
+.mic.listening::before{animation-duration:.9s}
+.nova .avatar.orb{position:relative;width:38px;height:38px;font-size:0;background:radial-gradient(circle at 34% 28%,#fff 0 6%,#a9f7ff 14%,#2f8bff 45%,#4a1fb0 78%)}
+.nova.speaking .avatar.orb::before{animation-duration:.8s}
+
+/* achievement-style mission banner */
+#toast{top:92px;padding:12px 24px;border-radius:16px;font-size:19px;background:linear-gradient(90deg,rgba(255,201,77,.25),rgba(10,18,40,.94) 45%);border:1px solid var(--amber);box-shadow:0 0 34px rgba(255,201,77,.35)}
+
+/* start screen: the live 3D world shows through */
+.overlay{background:radial-gradient(ellipse at center,rgba(7,11,26,.3),rgba(7,11,26,.82))}
+.theme[data-theme=space]{background:linear-gradient(160deg,rgba(56,225,255,.2),rgba(7,11,26,.35))}
+.theme[data-theme=cyber]{background:linear-gradient(160deg,rgba(255,79,216,.24),rgba(13,2,33,.35))}
+.theme[data-theme=ocean]{background:linear-gradient(160deg,rgba(61,232,255,.22),rgba(2,26,43,.35))}
+.theme[data-theme=smart]{background:linear-gradient(160deg,rgba(124,255,138,.2),rgba(10,18,40,.35))}
+.theme:hover,.mode:hover{transform:translateY(-2px)}
+
+/* attract mode: clean cinematic world, no HUD */
+.top,.missions,.pipeline,.console{transition:opacity .5s}
+body.attract-on .top,body.attract-on .missions,body.attract-on .pipeline,body.attract-on .console{opacity:0;pointer-events:none}
+
+/* 👁 View world: hide the side panels so everyone can see the whole scene */
+body.hud-min .missions{opacity:0;transform:translateX(-30px);pointer-events:none}
+body.hud-min .pipeline{opacity:0;transform:translateX(30px);pointer-events:none}
+body.hud-min .talk{display:none}
+#viewBtn.on{border-color:var(--cyan);background:rgba(56,225,255,.2)}
+
+@media (max-width:760px){
+  .missions{max-height:none}
+  .mic{width:64px;height:64px}
+  .type input{height:44px}
+  .type button{width:44px;height:44px}
+}
+
+/* polish */
+.missions{overflow-x:hidden;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(120,200,255,.35) transparent}
+.missions::-webkit-scrollbar{width:6px}.missions::-webkit-scrollbar-thumb{background:rgba(120,200,255,.35);border-radius:6px}.missions::-webkit-scrollbar-track{background:transparent}
+h1{white-space:nowrap;font-size:18px}
+.stat b,.stat span{white-space:nowrap}
+.lvl b{max-width:28vw}
+@media (max-width:1300px){.brand p{display:none}}
+
+/* voice picker */
+.voice-row{display:flex;gap:8px;justify-content:center;align-items:center;flex-wrap:wrap;margin-top:12px;font-size:14px;color:var(--muted)}
+.voice-row select{max-width:280px;padding:8px 10px;border-radius:10px;background:rgba(10,18,40,.85);border:1px solid var(--line);color:var(--text)}
+.ghost-btn.small{padding:8px 14px;font-size:14px}
+
+@media (max-width:760px){body.challenge .missions{display:none}.cbar{top:80px}}

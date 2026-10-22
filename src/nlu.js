@@ -97,6 +97,9 @@ export function parse(raw, ctx) {
   if (m(/\b(reset|restart|start over|clear everything)\b/)) return out('reset');
   if (m(/\b(cancel|never ?mind|forget it)\b/)) return out('cancel');
   if (m(/\b(how many planets|list (the )?planets|which planets|what planets)\b/)) return out('countPlanets');
+  const world = Object.keys(WORLDS).find(k => WORLDS[k].test(t));
+  if (world && (m(TRAVEL) || !isCreate)) { kw.push(t.match(WORLDS[world])[0]); return out('travel', { world }); }
+  if (m(/\b(another|next|different|other) (world|theme)\b|\b(change|switch) (the )?(world|theme)\b|\bthrough the portal\b/)) return out('travel', { world: null });
   if (m(/\bblack ?holes?\b/)) return out(isDestroy || m(/\b(close|stop|remove)\b/) ? 'blackholeOff' : 'blackhole');
   if (m(/\b(warp|hyper ?space|hyper ?drive|light ?speed)\b/)) return out('warp');
   if (m(/\b(portal|wormhole|gate|teleport)\b/)) return out(m(/\b(close|shut)\b/) || isDestroy ? 'portalClose' : 'portal');
@@ -123,7 +126,11 @@ export function parse(raw, ctx) {
   return out('unknown');
 }
 
-export const INTENT_NAMES = { createPlanet: 'CREATE PLANET', destroy: 'DESTROY PLANET', moon: 'ADD MOON', modify: 'CHANGE PLANET', ships: 'LAUNCH SPACESHIPS', rocket: 'LAUNCH ROCKET', rain: 'START RAIN', rainOff: 'STOP RAIN', day: 'MAKE DAY', night: 'MAKE NIGHT', fireworks: 'FIREWORKS', portal: 'OPEN PORTAL', portalClose: 'CLOSE PORTAL', blackhole: 'CREATE BLACK HOLE', blackholeOff: 'REMOVE BLACK HOLE', warp: 'WARP SPEED', help: 'ASK FOR HELP', greet: 'SAY HELLO', whoami: 'ASK NOVA', thanks: 'SAY THANKS', countPlanets: 'COUNT PLANETS', nextLevel: 'NEXT LEVEL', reset: 'RESET WORLD', cancel: 'CANCEL', yes: 'YES', no: 'NO', unknown: 'UNKNOWN' };
+// The four worlds visitors can travel between
+export const WORLDS = { cyber: /\b(cyber ?punk|bengaluru|bangalore|neon city)\b/, ocean: /\b(under ?water|ocean|deep sea|sea base)\b/, smart: /\bsmart city\b/, space: /\bspace lab\b/ };
+const TRAVEL = /\b(go|take|travel|switch|change|teleport|move|visit|fly|jump|send|bring)\b/;
+
+export const INTENT_NAMES = { travel: 'TRAVEL TO WORLD', createPlanet: 'CREATE PLANET', destroy: 'DESTROY PLANET', moon: 'ADD MOON', modify: 'CHANGE PLANET', ships: 'LAUNCH SPACESHIPS', rocket: 'LAUNCH ROCKET', rain: 'START RAIN', rainOff: 'STOP RAIN', day: 'MAKE DAY', night: 'MAKE NIGHT', fireworks: 'FIREWORKS', portal: 'OPEN PORTAL', portalClose: 'CLOSE PORTAL', blackhole: 'CREATE BLACK HOLE', blackholeOff: 'REMOVE BLACK HOLE', warp: 'WARP SPEED', help: 'ASK FOR HELP', greet: 'SAY HELLO', whoami: 'ASK NOVA', thanks: 'SAY THANKS', countPlanets: 'COUNT PLANETS', nextLevel: 'NEXT LEVEL', reset: 'RESET WORLD', cancel: 'CANCEL', yes: 'YES', no: 'NO', unknown: 'UNKNOWN' };
 // which levels each action works in
 export const AVAIL = { rocket: [1], rain: [1], rainOff: [1], day: [1], night: [1], createPlanet: [2, 3], destroy: [2, 3], moon: [2, 3], modify: [2, 3], countPlanets: [2, 3], portal: [3], portalClose: [3], ships: [3], blackhole: [3], blackholeOff: [3], warp: [3] };
 
@@ -134,6 +141,7 @@ export function describe(p) {
   if (p.size) d.push(`size: ${p.size}`);
   if (p.grow) d.push(`size: ${p.grow}`);
   if (p.count) d.push(`number: ${p.count}`);
+  if (p.world) d.push(`world: ${p.world}`);
   if (p.target) d.push(`planet: ${p.target === 'all' ? 'all' : p.target.name}`);
   return `🧠 ${INTENT_NAMES[p.intent] || p.intent}${d.length ? ' · ' + d.join(' · ') : ''}`;
 }

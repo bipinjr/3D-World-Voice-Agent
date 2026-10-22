@@ -8,12 +8,12 @@ const MAX_PLANETS = 6, MAX_SHIPS = 16, MAX_BURSTS = 24;
 
 // ---------- central star (levels 2–3)
 export const star = new THREE.Group();
-star.add(new THREE.Mesh(new THREE.SphereGeometry(3, 48, 48), new THREE.MeshBasicMaterial({ color: '#ffd27a' })), glowSprite('#ffb347', 18, 0.9));
+star.add(new THREE.Mesh(new THREE.SphereGeometry(3, 48, 48), new THREE.MeshBasicMaterial({ color: '#ffd27a' })), glowSprite('#ffb347', 16, 0.5));
 star.visible = false; scene.add(star);
 
 // ---------- galaxy + nebula backdrop (level 3)
 export const deepSpace = new THREE.Group(); deepSpace.visible = false; scene.add(deepSpace);
-const galaxy = new THREE.Group();
+const galaxy = new THREE.Group(), nebulae = [];
 {
   const N = 5000, pos = new Float32Array(N * 3), col = new Float32Array(N * 3), inner = new THREE.Color('#ffd9a0'), outer = new THREE.Color('#7a5cff'), c = new THREE.Color();
   for (let i = 0; i < N; i++) {
@@ -26,12 +26,20 @@ const galaxy = new THREE.Group();
   galaxy.position.set(-70, 35, -130); galaxy.rotation.set(0.9, 0, 0.3);
   deepSpace.add(galaxy);
   for (const [x, y, z, c2] of [[60, 20, -120, '#ff4fd8'], [-20, -10, -140, '#38e1ff'], [100, 40, -60, '#7a5cff'], [-110, 0, -40, '#ff7a3d']]) {
-    const n = glowSprite(c2, 110, 0.22); n.position.set(x, y, z); deepSpace.add(n);
+    const n = glowSprite(c2, 110, 0.22); n.position.set(x, y, z); deepSpace.add(n); nebulae.push(n);
   }
 }
 
+export function applySpaceTheme(th) {
+  planetNames = th.names; orbitColor = th.rim;
+  star.children[0].material.color.set(th.star); star.children[1].material.color.set(th.glow);
+  galaxy.children[0].material.color.set(th.tint); galaxy.children[1].material.color.set(th.glow);
+  nebulae.forEach((n, i) => n.material.color.set(th.nebula[i % th.nebula.length]));
+  planets.forEach(p => p.line.material.color.set(th.rim));
+}
+
 // ---------- planets
-const PLANET_NAMES = ['Zorbit', 'Nova', 'Kepler', 'Astra', 'Vyom', 'Chandra', 'Pixelon', 'Tara', 'Glorp', 'Mango', 'Bluto', 'Surya', 'Indra', 'Zed'];
+let planetNames = ['Zorbit', 'Nova', 'Kepler', 'Astra', 'Vyom', 'Chandra', 'Pixelon', 'Tara', 'Glorp'], orbitColor = '#38e1ff';
 const ORBITS = [8, 11, 14, 17, 20, 23];
 export const planets = [];
 export const space = { lastPlanet: null, portalOpen: false, bhOn: false };
@@ -55,12 +63,12 @@ function makeLabel(text) {
 }
 function orbitLine(r, y) {
   const pts = []; for (let i = 0; i <= 128; i++) { const a = i / 128 * Math.PI * 2; pts.push(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r)); }
-  return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: '#38e1ff', transparent: true, opacity: 0.22 }));
+  return new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: orbitColor, transparent: true, opacity: 0.22 }));
 }
 export const alivePlanets = () => planets.filter(p => p.state === 'alive');
 export function freshName() {
   const used = new Set(planets.map(p => p.name.toLowerCase()));
-  return PLANET_NAMES.find(n => !used.has(n.toLowerCase())) || 'Planet ' + (planets.length + 1);
+  return planetNames.find(n => !used.has(n.toLowerCase())) || 'Planet ' + (planets.length + 1);
 }
 export function createPlanet({ name, color, size }) {
   while (alivePlanets().length >= MAX_PLANETS) removePlanet(alivePlanets()[0]);
@@ -73,10 +81,10 @@ export function createPlanet({ name, color, size }) {
   const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 48), std('#fff', { map: planetTexture(COLORS[colorName]), emissive: COLORS[colorName], emissiveIntensity: 0.18 }));
   const ring = new THREE.Mesh(new THREE.RingGeometry(1.4, 2.1, 64), new THREE.MeshBasicMaterial({ color: new THREE.Color(COLORS[colorName]).offsetHSL(0.1, 0, 0.15), side: THREE.DoubleSide, transparent: true, opacity: 0.55 }));
   ring.rotation.x = Math.PI / 2.3; ring.visible = Math.random() < 0.4; mesh.add(ring);
-  const label = makeLabel(finalName);
-  group.add(mesh, label);
+  const label = makeLabel(finalName), halo = glowSprite(COLORS[colorName], 4, 0.4);
+  group.add(halo, mesh, label);
   const y = rand(-1, 1.5), line = orbitLine(orbit, y);
-  const p = { name: finalName, colorName, size: SIZES[size] ?? rand(0.85, 1.2), sizeNow: 0.3, group, mesh, label, line, orbit, y, speed: rand(1, 2) / orbit, angle: view.angle + rand(-0.4, 0.4), grow: 0, moons: [], state: 'alive', t: 0 };
+  const p = { name: finalName, colorName, size: SIZES[size] ?? rand(0.85, 1.2), sizeNow: 0.3, group, mesh, label, halo, line, orbit, y, speed: rand(1, 2) / orbit, angle: view.angle + rand(-0.4, 0.4), grow: 0, moons: [], state: 'alive', t: 0 };
   group.position.set(Math.sin(p.angle) * orbit, y, Math.cos(p.angle) * orbit);
   scene.add(group, line); planets.push(p); space.lastPlanet = p;
   return p;
@@ -91,7 +99,7 @@ export function removePlanet(p) {
 export function recolor(p, colorName) {
   if (!COLORS[colorName]) return;
   p.colorName = colorName; p.mesh.material.map?.dispose(); p.mesh.material.map = planetTexture(COLORS[colorName]);
-  p.mesh.material.emissive.set(COLORS[colorName]); p.mesh.material.needsUpdate = true;
+  p.mesh.material.emissive.set(COLORS[colorName]); p.mesh.material.needsUpdate = true; p.halo.material.color.set(COLORS[colorName]);
 }
 export function addMoon(p) {
   if (p.moons.length >= 3 || p.state !== 'alive') return false;
@@ -256,7 +264,7 @@ export function updateSpace(dt, t) {
       }
     }
     p.mesh.scale.setScalar(Math.max(0.001, s)); p.mesh.rotation.y += dt * 0.4;
-    p.label.position.y = p.sizeNow + 1.5;
+    p.label.position.y = p.sizeNow + 1.5; p.halo.scale.setScalar(Math.max(0.001, s * 4.2));
     for (const m of p.moons) m.pivot.rotation.y += m.speed * dt;
   }
 

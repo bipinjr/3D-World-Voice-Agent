@@ -45,8 +45,8 @@ export function setListeningUI(on) {
 export function setNovaText(t) { $('#novaText').textContent = t; }
 export function setSpeaking(on) { $('#nova').classList.toggle('speaking', on); }
 
-export function renderCards(levelNum, L, onTap) {
-  $('#missionsTitle').textContent = `🎯 Level ${levelNum} missions`;
+export function renderCards(title, L, onTap) {
+  $('#missionsTitle').textContent = title;
   $('#freeTip').innerHTML = '💬 ' + L.free;
   const cards = $('#cards'); cards.innerHTML = '';
   L.missions.forEach((m, i) => {
@@ -57,15 +57,19 @@ export function renderCards(levelNum, L, onTap) {
     cards.append(b);
   });
 }
-export function updateHud(state, L) {
-  const done = L.missions.filter(m => state.done.has(m.id)).length;
+export function updateHud(state, L, label) {
+  const total = L.missions.length, done = L.missions.filter(m => state.done.has(m.id)).length;
   $('#score').textContent = state.score;
   $('#streak').textContent = `🔥 ${state.streak}`;
-  $('#doneCount').textContent = `${done}/${L.missions.length}`;
-  $('#bar').style.width = (done / L.missions.length * 100) + '%';
-  $('#lvlName').textContent = `LEVEL ${state.level} · ${L.name.toUpperCase()}`;
+  $('#doneCount').textContent = L.progress ? L.progress() : `${done}/${total}`;
+  $('#bar').style.width = ((L.ratio ? L.ratio() : total ? done / total : 0) * 100) + '%';
+  $('#lvlName').textContent = label;
   document.querySelectorAll('.dots i').forEach((d, i) => d.classList.toggle('on', i < state.level));
-  document.querySelectorAll('.card').forEach(c => c.classList.toggle('done', state.done.has(c.dataset.id)));
+  let next = true; // first unfinished mission glows as NEXT
+  document.querySelectorAll('.card').forEach(c => {
+    const d = state.done.has(c.dataset.id); c.classList.toggle('done', d);
+    c.classList.toggle('next', !d && next); if (!d) next = false;
+  });
 }
 export function flashCard(id) {
   const card = document.querySelector(`.card[data-id="${id}"]`); if (!card) return;

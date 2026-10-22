@@ -36,8 +36,27 @@ Voice recognition needs **Google Chrome or Edge** with **internet**. Everything 
 - On slow laptops the resolution drops automatically.
 - Voice is protected against double starts, ignored permission prompts, missing callbacks, NOVA hearing herself, and unsupported browsers.
 
-## Worlds (choose on the start screen)
+## Modes
+| Mode | What happens |
+|---|---|
+| 🎯 Story | 3 guided levels: your world, a solar system, the galaxy |
+| ⚡ Speed Challenge | 90 seconds. Say each command on screen as fast as you can; combos give bonus points. The mic re-opens by itself between commands. |
+| 🎨 Free Play | Everything unlocked: discover all 12 powers in any order. NOVA warps between your world and space by herself. |
+| 🧠 Learn AI | The story levels, but NOVA explains how she understood each sentence |
+
+Story and Challenge have their own top-10 leaderboard on the laptop. Every finisher can download a certificate image.
+
+## Worlds (connected through every level)
 🚀 Space Lab · 🌆 Cyberpunk Bengaluru · 🐠 Underwater Base · 🏙️ Smart City
+
+The world you pick colours the sun, galaxy and orbits in Levels 2–3 and names the planets (for example Koramangala, Nemo or Byte). Switch worlds any time: say *"take me to underwater base"* or tap the world button in the header.
+
+## Expo features
+- **Attract mode:** after 30 s on the start screen, the world demos itself to pull in a crowd. Tap anywhere to play.
+- **Idle reset:** after 90 s of no activity mid-game, the app asks "Still there?" and then resets for the next visitor.
+- **👁 View world:** the button in the header, or the **H** key, hides the side panels so everyone sees the whole 3D scene.
+- **NOVA's voice:** pick it on the start screen and press ▶ Test. Microsoft Edge has the most natural voices (marked ★).
+- **Sound:** synthesised effects and music. Sound goes quiet automatically while the mic listens.
 
 ## Levels and missions
 | Level | Missions (example phrases) |
