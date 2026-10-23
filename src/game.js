@@ -89,7 +89,7 @@ const titleIcon = () => (state.mode === 'free' ? 'palette' : state.mode === 'cha
 // Free play / challenge: warp to the island or to space, whichever the command needs
 function switchScene(n, then) {
   if (challenge.running) { setLevel(n); const f = $('#flashFx'); f.style.opacity = 0.6; setTimeout(() => { f.style.opacity = 0; }, 120); return then(); } // speed challenge: no warp, just a flash
-  if (state.busy || isWarping()) return nova('Hold on, we are already warping!');
+  if (state.busy || isWarping()) return void setTimeout(() => switchScene(n, then), 600); // mid-warp: go as soon as it lands
   state.busy = true; setPending(null); sfx.whoosh();
   nova(n === 1 ? `Taking you back to ${home.theme.name}!` : 'Blasting off to space!');
   startWarp(guard(() => setLevel(n)), guard(() => { release(); then(); }));
@@ -462,10 +462,10 @@ function answerPending(raw, source) {
 // ---------- input from voice / typing / tapping
 let lastInputAt = 0, queued = null;
 // end of a warp: run whatever the visitor said while it was flying
-function release() { state.busy = false; const q = queued; queued = null; if (q) setTimeout(() => handleInput(...q), 400); }
+function release() { state.busy = false; const q = queued; queued = null; if (q) setTimeout(q, 400); }
 const handleInput = guard((alternatives, confidence, source) => {
   if (!state.started || ui.isShown('#levelCard') || ui.isShown('#complete')) return;
-  if (state.busy) { queued = [alternatives, confidence, source]; ui.chip('⏳ Got it! Doing that right after the warp…', 'ask'); return; }
+  if (state.busy) { queued = () => handleInput(alternatives, confidence, source); ui.chip('⏳ Got it! Doing that right after the warp…', 'ask'); return; }
   const now = performance.now(); if (now - lastInputAt < 250) return; lastInputAt = now; activity(); // ignore double-fires
   ui.setHeardLabel(source === 'voice' ? '🧑 You said' : '⌨️ You typed');
   const raw = alternatives[0];
@@ -494,7 +494,8 @@ const handleInput = guard((alternatives, confidence, source) => {
   setTimeout(guard(() => { if (state.level !== lvl || state.busy) return; ui.setStep(4); suffix = state.mode === 'learn' ? explain(p) : ''; act(p, source); afterAct(p, text, source); }), 350);
 });
 const runTap = guard(m => {
-  if (!state.started || state.busy) return;
+  if (!state.started) return;
+  if (state.busy) { queued = () => runTap(m); return ui.chip('⏳ Got it! Doing that right after the warp…', 'ask'); }
   if (state.mode === 'challenge') return ui.toast('Say it out loud! 🎤 Tap the mic');
   if (pending) setPending(null);
   const p = m.tap(); ui.setStep(4); ui.chip(describe(p) + ' · (tapped)', 'good'); act(p, 'tap'); afterAct(p, m.say, 'tap');
@@ -700,6 +701,10 @@ export function bindUI() {
   renderTopStrip();
   $('#hallBtn').onclick = openHall; $('#hallOpen').onclick = openHall;
   $('#hallClose').onclick = () => ui.show('#hall', false);
+  // operator reset: wipe every score on this computer (button with confirmation, or open the app with ?resetHall)
+  const clearHall = () => { ['story', 'challenge'].forEach(m => saveBoard([], m)); renderHall(); renderTopStrip(); };
+  $('#hallClear').onclick = () => { if (confirm('Clear all Hall of Fame scores on this computer?')) clearHall(); };
+  if (new URLSearchParams(location.search).has('resetHall')) { clearHall(); history.replaceState(null, '', location.pathname + location.hash); ui.toast('Hall of Fame cleared', 'trophy'); }
   // live: another window/tab on this laptop (e.g. a projector screen) saved a score
   addEventListener('storage', e => { if (e.key?.startsWith('ctf.leaderboard')) { renderHall(); renderTopStrip(); } });
   // ?hall = a dedicated full-screen Hall of Fame display

@@ -347,7 +347,7 @@ body.learn .step.active{box-shadow:0 0 26px rgba(56,225,255,.45)}
 .board li.empty::before{content:none}
 #hall .kicker{color:var(--lime)}
 #hall{z-index:13}
-body.hall-screen #hallClose{display:none}
+body.hall-screen #hallClose,body.hall-screen #hallClear{display:none}
 body.hall-screen .hall-panel{max-width:1200px;transform:scale(1.15)}
 @media (max-width:760px){.hall-cols{grid-template-columns:1fr}.hall-open{margin:10px 0 0}}
 
