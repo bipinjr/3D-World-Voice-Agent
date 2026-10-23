@@ -6,6 +6,14 @@ export const COLORS = { red: '#ff4d5e', blue: '#4d8bff', green: '#46e38a', yello
 export const SIZES = { tiny: 0.55, small: 0.7, little: 0.7, medium: 1, big: 1.6, large: 1.6, huge: 2.1, giant: 2.1, massive: 2.1, gigantic: 2.1, enormous: 2.1 };
 export const NUMS = { one: 1, a: 1, an: 1, single: 1, two: 2, to: 2, too: 2, couple: 2, three: 3, four: 4, for: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10, eleven: 11, twelve: 12, fifteen: 15, twenty: 20, fifty: 50, hundred: 100, thousand: 1000, million: 1000000 };
 
+// common speech-recognition mishearings → the word the visitor meant
+const ALIASES = [[/\brock it\b/g, 'rocket'], [/\bport all\b/g, 'portal'], [/\b(wrap|work) speed\b/g, 'warp speed'], [/\bfire works\b/g, 'fireworks'],
+  [/\b(u f o|you f o|you fo|you foe)\b/g, 'ufo'], [/\bblack whole\b/g, 'black hole'], [/\b(plannet|planit|plan it)\b/g, 'planet'], [/\b(reign|rein)\b/g, 'rain'],
+  [/\bmeteor sour\b/g, 'meteor shower'], [/\b(volcanoes|vulcano)\b/g, 'volcano'], [/\bfire flies\b/g, 'fireflies'], [/\bnorthern light\b/g, 'northern lights']];
+export const alias = t => ALIASES.reduce((s, [re, to]) => s.replace(re, to), t);
+const REAL_RE = /\b(mercury|venus|earth|mars|jupiter|saturn|uranus|neptune|pluto)\b/;
+// words the recogniser should favour (contextual biasing, where the browser supports it)
+export const BOOST = ['rocket', 'launch', 'rain', 'snow', 'portal', 'black hole', 'warp speed', 'fireworks', 'UFO', 'meteor shower', 'aurora', 'disco', 'volcano', 'tornado', 'forest', 'flowers', 'fireflies', 'rainbow', 'lightning', 'earthquake', 'birds', 'spaceships', 'planet', 'moon', 'destroy', 'Jupiter', 'Saturn', 'Mars', 'Venus', 'Neptune', 'Uranus', 'Mercury', 'Pluto', 'Earth', 'NOVA'];
 export const norm = s => String(s ?? '').toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim();
 export const reEsc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const word = w => new RegExp(`\\b${reEsc(w)}\\b`);
@@ -79,7 +87,7 @@ export function resolveTarget(raw, ctx) {
 
 export function parse(raw, ctx) {
   raw = String(raw ?? '').slice(0, 300);
-  const t = norm(raw), kw = [];
+  const t = alias(norm(raw)), kw = [];
   const m = re => { const r = t.match(re); if (r) { kw.push(r[0]); return true; } return false; };
   const color = Object.keys(COLORS).find(c => word(c).test(t)) || null;
   const size = Object.keys(SIZES).find(s => word(s).test(t)) || null;
@@ -103,6 +111,12 @@ export function parse(raw, ctx) {
   if (m(/\bblack ?holes?\b/)) return out(isDestroy || m(/\b(close|stop|remove)\b/) ? 'blackholeOff' : 'blackhole');
   if (m(/\b(warp|hyper ?space|hyper ?drive|light ?speed)\b/)) return out('warp');
   if (m(/\b(photo|picture|screenshot|selfie|cheese|snapshot)\b/)) return out('photo');
+  if (m(/\b(fireflies|firefly|glow ?worms?)\b/)) return out('fireflies');
+  if (m(/\b(forest|trees?|jungle|woods)\b/)) return out('forest');
+  if (m(/\b(flowers?|bloom|blossoms?|garden)\b/)) return out('flowers');
+  if (m(/\b(volcano|erupt|eruption|lava)\b/)) return out('volcano');
+  if (m(/\b(tornado(es)?|twister|whirlwind|cyclone|hurricane)\b/)) return out('tornado');
+  if (m(/\b(birds?|flock|eagles?|parrots?|pigeons?)\b/)) return out('birds');
   if (m(/\b(snow|snowing|snowfall|blizzard)\b/)) return out('snow');
   if (m(/\b(lightning|thunder|thunderbolt|bolt)\b/)) return out('lightning');
   if (m(/\brainbow\b/)) return out('rainbow');
@@ -119,10 +133,12 @@ export function parse(raw, ctx) {
     return out('ships', { count: extractCount(t), plural: /(ships|fleet|rockets|crafts)\b/.test(t) });
   if (m(/\bmoons?\b/) && (isCreate || planetRef || /\b(to|for)\b/.test(t))) return out('moon', { target: resolveTarget(raw, ctx) });
   if (isDestroy && !/\b(rain|storm|clouds?|weather|bubbles?)\b/.test(t)) { m(/\b(planets?|worlds?)\b/); return out('destroy', { target: resolveTarget(raw, ctx) }); }
-  if (m(/\b(planets?|worlds?)\b/) || planetRef) {
-    const name = extractName(raw);
+  const real = !planetRef && t.match(REAL_RE);
+  if (m(/\b(planets?|worlds?)\b/) || planetRef || (real && isCreate)) {
+    const name = extractName(raw) || (real ? real[1][0].toUpperCase() + real[1].slice(1) : null);
+    if (real) kw.push(real[1]);
     if (planetRef && !name && !/\b(new|another)\b/.test(t) && (color || size || grow)) return out('modify', { target: planetRef, color, size, grow });
-    if (isCreate || /\bplanet\b/.test(t)) return out('createPlanet', { name, color, size });
+    if (isCreate || /\bplanet\b/.test(t) || real) return out('createPlanet', { name, color, size });
   }
   if ((color || size || grow) && /\b(it|that|this)\b/.test(t) && ctx.lastPlanet && ctx.level >= 2) return out('modify', { target: ctx.lastPlanet, color, size, grow });
   if (m(/\b(rain|raining|storm|weather|clouds?|cloudy|thunder|drizzle|bubbles?)\b/)) return out(/\b(stop|no|end|clear|remove|delete|off|destroy|kill)\b/.test(t) ? 'rainOff' : 'rain');
@@ -142,9 +158,9 @@ export function parse(raw, ctx) {
 export const WORLDS = { cyber: /\b(cyber ?punk|bengaluru|bangalore|neon city)\b/, ocean: /\b(under ?water|ocean|deep sea|sea base)\b/, smart: /\bsmart city\b/, space: /\bspace lab\b/ };
 const TRAVEL = /\b(go|take|travel|switch|change|teleport|move|visit|fly|jump|send|bring)\b/;
 
-export const INTENT_NAMES = { travel: 'TRAVEL TO WORLD', snow: 'MAKE IT SNOW', lightning: 'LIGHTNING STRIKE', rainbow: 'RAINBOW', earthquake: 'EARTHQUAKE', meteors: 'METEOR SHOWER', aurora: 'AURORA', ufo: 'SUMMON UFO', disco: 'DISCO MODE', zoom: 'ZOOM CAMERA', spin: 'SPIN CAMERA', photo: 'TAKE A PHOTO', createPlanet: 'CREATE PLANET', destroy: 'DESTROY PLANET', moon: 'ADD MOON', modify: 'CHANGE PLANET', ships: 'LAUNCH SPACESHIPS', rocket: 'LAUNCH ROCKET', rain: 'START RAIN', rainOff: 'STOP RAIN', day: 'MAKE DAY', night: 'MAKE NIGHT', fireworks: 'FIREWORKS', portal: 'OPEN PORTAL', portalClose: 'CLOSE PORTAL', blackhole: 'CREATE BLACK HOLE', blackholeOff: 'REMOVE BLACK HOLE', warp: 'WARP SPEED', help: 'ASK FOR HELP', greet: 'SAY HELLO', whoami: 'ASK NOVA', thanks: 'SAY THANKS', countPlanets: 'COUNT PLANETS', nextLevel: 'NEXT LEVEL', reset: 'RESET WORLD', cancel: 'CANCEL', yes: 'YES', no: 'NO', unknown: 'UNKNOWN' };
+export const INTENT_NAMES = { forest: 'GROW A FOREST', flowers: 'BLOOM FLOWERS', volcano: 'ERUPT VOLCANO', tornado: 'SUMMON TORNADO', birds: 'FLOCK OF BIRDS', fireflies: 'RELEASE FIREFLIES', travel: 'TRAVEL TO WORLD', snow: 'MAKE IT SNOW', lightning: 'LIGHTNING STRIKE', rainbow: 'RAINBOW', earthquake: 'EARTHQUAKE', meteors: 'METEOR SHOWER', aurora: 'AURORA', ufo: 'SUMMON UFO', disco: 'DISCO MODE', zoom: 'ZOOM CAMERA', spin: 'SPIN CAMERA', photo: 'TAKE A PHOTO', createPlanet: 'CREATE PLANET', destroy: 'DESTROY PLANET', moon: 'ADD MOON', modify: 'CHANGE PLANET', ships: 'LAUNCH SPACESHIPS', rocket: 'LAUNCH ROCKET', rain: 'START RAIN', rainOff: 'STOP RAIN', day: 'MAKE DAY', night: 'MAKE NIGHT', fireworks: 'FIREWORKS', portal: 'OPEN PORTAL', portalClose: 'CLOSE PORTAL', blackhole: 'CREATE BLACK HOLE', blackholeOff: 'REMOVE BLACK HOLE', warp: 'WARP SPEED', help: 'ASK FOR HELP', greet: 'SAY HELLO', whoami: 'ASK NOVA', thanks: 'SAY THANKS', countPlanets: 'COUNT PLANETS', nextLevel: 'NEXT LEVEL', reset: 'RESET WORLD', cancel: 'CANCEL', yes: 'YES', no: 'NO', unknown: 'UNKNOWN' };
 // which levels each action works in
-export const AVAIL = { snow: [1], lightning: [1], rainbow: [1], earthquake: [1], rocket: [1], rain: [1], rainOff: [1], day: [1], night: [1], createPlanet: [2, 3], destroy: [2, 3], moon: [2, 3], modify: [2, 3], countPlanets: [2, 3], portal: [3], portalClose: [3], ships: [3], blackhole: [3], blackholeOff: [3], warp: [3] };
+export const AVAIL = { forest: [1], flowers: [1], volcano: [1], tornado: [1], birds: [1], fireflies: [1], snow: [1], lightning: [1], rainbow: [1], earthquake: [1], rocket: [1], rain: [1], rainOff: [1], day: [1], night: [1], createPlanet: [2, 3], destroy: [2, 3], moon: [2, 3], modify: [2, 3], countPlanets: [2, 3], portal: [3], portalClose: [3], ships: [3], blackhole: [3], blackholeOff: [3], warp: [3] };
 
 export function describe(p) {
   const d = [];

@@ -40,6 +40,9 @@ addEventListener('resize', resize); resize();
 
 export const hemi = new THREE.HemisphereLight('#9ecbff', '#1a1033', 0.6);
 export const sunLight = new THREE.DirectionalLight('#ffffff', 0.8); sunLight.position.set(8, 15, 6);
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+sunLight.castShadow = true; sunLight.shadow.mapSize.set(1024, 1024); sunLight.shadow.bias = -0.0008; sunLight.shadow.normalBias = 0.02;
+Object.assign(sunLight.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 1, far: 50 });
 export const starLight = new THREE.PointLight('#fff1d6', 0, 0, 0);
 scene.add(hemi, sunLight, starLight);
 
@@ -90,8 +93,8 @@ export const sky = new THREE.Mesh(new THREE.SphereGeometry(450, 48, 24), new THR
       float n = fbm(d * 2.2 + vec3(time * 0.015, 0.0, time * 0.01));
       float n2 = fbm(d * 3.7 - vec3(0.0, time * 0.008, time * 0.012));
       c += mix(c1, c2, n2) * smoothstep(0.42, 0.9, n) * nebula;
-      float s = hash(floor(d * 420.0));
-      c += vec3(step(0.997, s) * (0.55 + 0.45 * sin(time * 2.5 + s * 90.0))) * starAmt;
+      vec3 cell = d * 420.0; float s = hash(floor(cell)); float dotm = smoothstep(0.45, 0.05, length(fract(cell) - 0.5)); // round stars, not square cells
+      c += vec3(step(0.997, s) * dotm * (0.55 + 0.45 * sin(time * 2.5 + s * 90.0))) * starAmt;
       gl_FragColor = vec4(c, 1.0);
     }`,
 }));

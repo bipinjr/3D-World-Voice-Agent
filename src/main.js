@@ -4,6 +4,7 @@ import { photo, sky, updateSparkles, renderer, composer, scene, camera, view, NI
 import { home, updateHome } from './home.js';
 import { updateSpace, warmupGroup } from './space.js';
 import { updateFx } from './fx.js';
+import { updateNature } from './nature.js';
 import { state, LEVELS, bindUI } from './game.js';
 import { reportError, showFatal } from './ui.js';
 
@@ -29,9 +30,9 @@ function frame(dt, t) {
   u.top.value.copy(bg).multiplyScalar(0.45); u.bottom.value.copy(bg).multiplyScalar(1.35); u.glow.value.set(home.theme.rim);
   u.c1.value.set(home.theme.nebula[0]); u.c2.value.set(home.theme.nebula[2]); u.time.value = t;
   u.nebula.value = inSpace ? 0.75 : 0.15 + 0.45 * (1 - home.dayT); u.starAmt.value = inSpace ? 1 : (1 - home.dayT) * (1 - home.rainLevel);
-  updateSparkles(dt, t); updateFx(dt, t);
+  updateSparkles(dt, t); updateFx(dt, t); if (L === 1) updateNature(dt, t);
   stars.material.opacity = inSpace ? 1 : (1 - home.dayT) * (1 - home.rainLevel * 0.7);
-  hemi.intensity = inSpace ? 0.45 : (0.6 + 0.9 * home.dayT) * (1 - 0.4 * home.rainLevel) + home.flash * 3;
+  hemi.intensity = inSpace ? 0.75 : (0.6 + 0.9 * home.dayT) * (1 - 0.4 * home.rainLevel) + home.flash * 3;
   sunLight.intensity = inSpace ? 0.2 : (0.7 + 1.3 * home.dayT) * (1 - 0.5 * home.rainLevel);
   starLight.intensity = inSpace ? 2.4 : 0;
 

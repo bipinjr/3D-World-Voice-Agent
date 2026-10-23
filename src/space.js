@@ -1,8 +1,9 @@
 // Levels 2–3: star, planets, moons, portal, spaceships, black hole, explosions, fireworks, warp.
 import * as THREE from 'three';
-import { scene, camera, view, glowSprite } from './scene.js';
+import { scene, camera, view, glowSprite, glowTex } from './scene.js';
 import { rand, pick, std, canvasTex, easeOutBack, disposeDeep } from './util.js';
 import { COLORS, SIZES } from './nlu.js';
+import { sfx } from './sfx.js';
 
 const MAX_PLANETS = 6, MAX_SHIPS = 16, MAX_BURSTS = 24;
 
@@ -25,6 +26,7 @@ const galaxy = new THREE.Group(), nebulae = [];
   galaxy.add(new THREE.Points(g, new THREE.PointsMaterial({ size: 0.6, vertexColors: true, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: false })), glowSprite('#ffcf8a', 22, 0.8));
   galaxy.position.set(-70, 35, -130); galaxy.rotation.set(0.9, 0, 0.3);
   deepSpace.add(galaxy);
+  for (const [txt, x, y, z] of [['ANDROMEDA GALAXY', -70, 18, -128], ['MILKY WAY', 60, 4, -118]]) { const l = makeLabel(txt); l.scale.set(26, 6.5, 1); l.position.set(x, y, z); deepSpace.add(l); }
   for (const [x, y, z, c2] of [[60, 20, -120, '#ff4fd8'], [-20, -10, -140, '#38e1ff'], [100, 40, -60, '#7a5cff'], [-110, 0, -40, '#ff7a3d']]) {
     const n = glowSprite(c2, 110, 0.22); n.position.set(x, y, z); deepSpace.add(n); nebulae.push(n);
   }
@@ -45,14 +47,91 @@ export const planets = [];
 export const space = { lastPlanet: null, portalOpen: false, bhOn: false };
 
 function planetTexture(hex) {
-  return canvasTex(256, 128, (g, w, h) => {
-    const base = new THREE.Color(hex); g.fillStyle = '#' + base.getHexString(); g.fillRect(0, 0, w, h);
-    for (let i = 0; i < 16; i++) {
-      g.globalAlpha = rand(0.3, 0.7); g.fillStyle = '#' + base.clone().offsetHSL(rand(-0.03, 0.03), 0, rand(-0.15, 0.15)).getHexString();
-      g.fillRect(0, rand(0, h), w, rand(3, 14));
+  return canvasTex(512, 256, (g, w, h) => {
+    const base = new THREE.Color(hex), tone = (dh, ds, dl) => '#' + base.clone().offsetHSL(dh, ds, dl).getHexString();
+    const grad = g.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, tone(0, -0.1, -0.14)); grad.addColorStop(0.5, '#' + base.getHexString()); grad.addColorStop(1, tone(0.02, -0.1, -0.16));
+    g.fillStyle = grad; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 26; i++) { // turbulent storm bands
+      const y0 = rand(0, h), amp = rand(2, 9), freq = rand(0.01, 0.03);
+      g.globalAlpha = rand(0.15, 0.45); g.strokeStyle = tone(rand(-0.04, 0.04), rand(-0.1, 0.1), rand(-0.2, 0.2)); g.lineWidth = rand(2, 10);
+      g.beginPath(); for (let x = 0; x <= w; x += 8) { const y = y0 + Math.sin(x * freq + i) * amp; x ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke();
     }
+    for (let i = 0; i < 18; i++) { // storms and craters
+      g.globalAlpha = rand(0.1, 0.35); g.fillStyle = tone(0, 0, rand(-0.25, 0.25));
+      g.beginPath(); g.ellipse(rand(0, w), rand(h * 0.15, h * 0.85), rand(4, 22), rand(3, 10), 0, 0, Math.PI * 2); g.fill();
+    }
+    g.globalAlpha = 1;
   });
 }
+// ---------- dramatic planet birth / death effects
+// atmosphere: a soft glowing rim around each planet (fresnel). The clamp matters: pow() of a tiny negative is NaN, and bloom smears NaN across the screen as black.
+const atmoMat = color => new THREE.ShaderMaterial({
+  uniforms: { c: { value: new THREE.Color(color) } }, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.BackSide,
+  vertexShader: 'varying vec3 vN; varying vec3 vV; void main(){ vec4 mv = modelViewMatrix * vec4(position, 1.0); vN = normalize(normalMatrix * normal); vV = normalize(-mv.xyz); gl_Position = projectionMatrix * mv; }',
+  fragmentShader: 'uniform vec3 c; varying vec3 vN; varying vec3 vV; void main(){ float f = pow(clamp(1.0 - abs(dot(vN, vV)), 0.0, 1.0), 2.5); gl_FragColor = vec4(c * f * 1.6, f); }',
+});
+const implosions = [], flashes = [], shocks = [], debris = [];
+const shockGeo = new THREE.RingGeometry(0.94, 1, 96);
+function flash(at, color, size, life) {
+  const s = glowSprite(color, 0.01, 1); s.position.copy(at); scene.add(s); flashes.push({ s, t: 0, size, life });
+}
+function shock(at, color, size) {
+  const m = new THREE.Mesh(shockGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false }));
+  m.position.copy(at); scene.add(m); shocks.push({ m, t: 0, size });
+}
+// birth: energy spirals into the spot, then flash + shockwave as the planet appears
+function birthFx(target, color) {
+  const N = 160, arr = new Float32Array(N * 3), from = [];
+  for (let i = 0; i < N; i++) from.push(new THREE.Vector3().randomDirection().multiplyScalar(rand(4, 8)));
+  const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ map: glowTex, color, size: 0.45, transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false }));
+  pts.frustumCulled = false; scene.add(pts); implosions.push({ pts, from, target, color, t: 0 });
+}
+// death: chunks of rock fly out in every direction
+function debrisFx(at, color) {
+  for (let i = 0; i < 16; i++) {
+    const m = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.15, 0.42)), std(color, { flatShading: true, emissive: color, emissiveIntensity: 0.6 }));
+    m.position.copy(at); scene.add(m);
+    debris.push({ m, vel: new THREE.Vector3().randomDirection().multiplyScalar(rand(5, 11)), spin: new THREE.Vector3(rand(-6, 6), rand(-6, 6), rand(-6, 6)), t: 0 });
+  }
+}
+function updatePlanetFx(dt) {
+  for (let i = implosions.length - 1; i >= 0; i--) {
+    const f = implosions[i]; f.t += dt;
+    const k = Math.min(1, f.t / 0.75), e = k * k, at = f.target.position, arr = f.pts.geometry.attributes.position.array;
+    f.from.forEach((v, j) => {
+      const a = k * 3, c = Math.cos(a), s = Math.sin(a), r = 1 - e; // swirl inward
+      arr[j * 3] = at.x + (v.x * c - v.z * s) * r; arr[j * 3 + 1] = at.y + v.y * r; arr[j * 3 + 2] = at.z + (v.x * s + v.z * c) * r;
+    });
+    f.pts.geometry.attributes.position.needsUpdate = true; f.pts.material.opacity = 0.4 + 0.6 * k;
+    if (k >= 1) {
+      scene.remove(f.pts); disposeDeep(f.pts); implosions.splice(i, 1);
+      flash(at, f.color, 8, 0.6); shock(at, f.color, 8); burst(at, f.color, 120, 3.5, 1.2, 0.3); view.shake = Math.max(view.shake, 0.2);
+    }
+  }
+  for (let i = flashes.length - 1; i >= 0; i--) {
+    const f = flashes[i]; f.t += dt; const k = f.t / f.life;
+    f.s.scale.setScalar(Math.max(0.01, f.size * Math.sqrt(k))); f.s.material.opacity = Math.max(0, 1 - k);
+    if (k >= 1) { scene.remove(f.s); disposeDeep(f.s); flashes.splice(i, 1); }
+  }
+  for (let i = shocks.length - 1; i >= 0; i--) {
+    const f = shocks[i]; f.t += dt; const k = f.t / 0.9;
+    f.m.lookAt(camera.position); f.m.scale.setScalar(1 + f.size * k); f.m.material.opacity = Math.max(0, 0.9 * (1 - k));
+    if (k >= 1) { scene.remove(f.m); f.m.material.dispose(); shocks.splice(i, 1); }
+  }
+  for (let i = debris.length - 1; i >= 0; i--) {
+    const d = debris[i]; d.t += dt;
+    d.m.position.addScaledVector(d.vel, dt); d.vel.multiplyScalar(0.985);
+    d.m.rotation.x += d.spin.x * dt; d.m.rotation.y += d.spin.y * dt; d.m.rotation.z += d.spin.z * dt;
+    if (d.t > 1.2) d.m.scale.setScalar(Math.max(0.001, 1 - (d.t - 1.2) / 0.8));
+    if (d.t > 2) { scene.remove(d.m); disposeDeep(d.m); debris.splice(i, 1); }
+  }
+}
+function clearPlanetFx() {
+  for (const list of [implosions, flashes, shocks, debris]) list.splice(0).forEach(o => { const obj = o.pts || o.s || o.m; scene.remove(obj); disposeDeep(obj); });
+}
+
 function makeLabel(text) {
   const tex = canvasTex(512, 128, (g, w, h) => {
     g.font = 'bold 60px Outfit, system-ui, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -70,23 +149,35 @@ export function freshName() {
   const used = new Set(planets.map(p => p.name.toLowerCase()));
   return planetNames.find(n => !used.has(n.toLowerCase())) || 'Planet ' + (planets.length + 1);
 }
+// our solar system: real colours, sizes and rings
+const REAL = { mercury: { color: 'grey', size: 0.7 }, venus: { color: 'gold', size: 0.95 }, earth: { color: 'blue', size: 1, earth: true }, mars: { color: 'red', size: 0.85 },
+  jupiter: { color: 'orange', size: 1.9 }, saturn: { color: 'gold', size: 1.6, ring: true }, uranus: { color: 'cyan', size: 1.3, ring: true }, neptune: { color: 'blue', size: 1.25 }, pluto: { color: 'brown', size: 0.55 } };
+const earthTexture = () => canvasTex(512, 256, (g, w, h) => {
+  g.fillStyle = '#1d4ed8'; g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 26; i++) { g.fillStyle = pick(['#16a34a', '#15803d', '#a16207']); g.beginPath(); g.ellipse(rand(0, w), rand(h * 0.15, h * 0.85), rand(12, 48), rand(8, 26), rand(0, 3), 0, Math.PI * 2); g.fill(); }
+  g.fillStyle = '#f8fafc'; g.fillRect(0, 0, w, 14); g.fillRect(0, h - 14, w, 14);
+  g.globalAlpha = 0.55; for (let i = 0; i < 30; i++) { g.beginPath(); g.ellipse(rand(0, w), rand(0, h), rand(14, 40), rand(3, 7), rand(-0.3, 0.3), 0, Math.PI * 2); g.fill(); }
+});
 export function createPlanet({ name, color, size }) {
   while (alivePlanets().length >= MAX_PLANETS) removePlanet(alivePlanets()[0]);
   let finalName = name || freshName();
   while (planets.some(q => q.name.toLowerCase() === finalName.toLowerCase())) finalName += ' 2';
-  const colorName = COLORS[color] ? color : pick(['red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink', 'cyan', 'gold']);
+  const real = REAL[finalName.split(' ')[0].toLowerCase()];
+  const colorName = COLORS[color] ? color : real?.color || pick(['red', 'blue', 'green', 'yellow', 'orange', 'purple', 'pink', 'cyan', 'gold']);
   const used = new Set(planets.map(p => p.orbit));
   const orbit = ORBITS.find(r => !used.has(r)) ?? rand(9, 22);
   const group = new THREE.Group();
-  const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 48), std('#fff', { map: planetTexture(COLORS[colorName]), emissive: COLORS[colorName], emissiveIntensity: 0.18 }));
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 48), std('#fff', { map: real?.earth && !color ? earthTexture() : planetTexture(COLORS[colorName]), emissive: COLORS[colorName], emissiveIntensity: 0.22, roughness: 0.55 }));
+  const atmo = new THREE.Mesh(new THREE.SphereGeometry(1.18, 48, 48), atmoMat(COLORS[colorName])); mesh.add(atmo);
   const ring = new THREE.Mesh(new THREE.RingGeometry(1.4, 2.1, 64), new THREE.MeshBasicMaterial({ color: new THREE.Color(COLORS[colorName]).offsetHSL(0.1, 0, 0.15), side: THREE.DoubleSide, transparent: true, opacity: 0.55 }));
-  ring.rotation.x = Math.PI / 2.3; ring.visible = Math.random() < 0.4; mesh.add(ring);
-  const label = makeLabel(finalName), halo = glowSprite(COLORS[colorName], 4, 0.4);
+  ring.rotation.x = Math.PI / 2.3; ring.visible = real ? !!real.ring : Math.random() < 0.4; mesh.add(ring);
+  const label = makeLabel(finalName), halo = glowSprite(COLORS[colorName], 4, 0.25);
   group.add(halo, mesh, label);
   const y = rand(-1, 1.5), line = orbitLine(orbit, y);
-  const p = { name: finalName, colorName, size: SIZES[size] ?? rand(0.85, 1.2), sizeNow: 0.3, group, mesh, label, halo, line, orbit, y, speed: rand(1, 2) / orbit, angle: view.angle + rand(-0.4, 0.4), grow: 0, moons: [], state: 'alive', t: 0 };
+  const p = { name: finalName, colorName, size: SIZES[size] ?? real?.size ?? rand(0.85, 1.2), sizeNow: 0.3, group, mesh, label, halo, atmo, line, orbit, y, speed: rand(1, 2) / orbit, angle: view.angle + rand(-0.4, 0.4), grow: -0.75, moons: [], state: 'alive', t: 0 }; // grow < 0: hidden while the birth effect plays
   group.position.set(Math.sin(p.angle) * orbit, y, Math.cos(p.angle) * orbit);
   scene.add(group, line); planets.push(p); space.lastPlanet = p;
+  birthFx(group, COLORS[colorName]);
   return p;
 }
 export function removePlanet(p) {
@@ -99,7 +190,7 @@ export function removePlanet(p) {
 export function recolor(p, colorName) {
   if (!COLORS[colorName]) return;
   p.colorName = colorName; p.mesh.material.map?.dispose(); p.mesh.material.map = planetTexture(COLORS[colorName]);
-  p.mesh.material.emissive.set(COLORS[colorName]); p.mesh.material.needsUpdate = true; p.halo.material.color.set(COLORS[colorName]);
+  p.mesh.material.emissive.set(COLORS[colorName]); p.mesh.material.needsUpdate = true; p.halo.material.color.set(COLORS[colorName]); p.atmo.material.uniforms.c.value.set(COLORS[colorName]);
 }
 export function addMoon(p) {
   if (p.moons.length >= 3 || p.state !== 'alive') return false;
@@ -116,15 +207,33 @@ export function explodePlanet(p) {
 
 // ---------- explosions & fireworks
 const bursts = []; let pendingBursts = [];
-function burst(center, color, n = 140, speed = 4.5, life = 2.2, size = 0.28) {
+function burst(center, color, n = 140, speed = 4.5, life = 2.2, size = 0.28, dirFn = null) {
   while (bursts.length >= MAX_BURSTS) killBurst(0);
   const pos = new Float32Array(n * 3), vel = [];
-  for (let i = 0; i < n; i++) { pos.set([center.x, center.y, center.z], i * 3); vel.push(new THREE.Vector3().randomDirection().multiplyScalar(speed * rand(0.6, 1.3))); }
+  for (let i = 0; i < n; i++) { pos.set([center.x, center.y, center.z], i * 3); vel.push((dirFn ? dirFn(i, n) : new THREE.Vector3().randomDirection()).multiplyScalar(speed * rand(0.6, 1.3))); }
   const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color, size, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
   scene.add(pts); bursts.push({ pts, vel, t: 0, life });
 }
 function killBurst(i) { const b = bursts[i]; scene.remove(b.pts); disposeDeep(b.pts); bursts.splice(i, 1); }
+const shells = [];
+function launchShell() {
+  if (shells.length > 12) return;
+  const col = new THREE.Color().setHSL(Math.random(), 1, 0.6), pos = new THREE.Vector3(rand(-8, 8), 0.5, rand(-6, 6));
+  const head = glowSprite(col, 1.2, 1); head.position.copy(pos);
+  const trail = new THREE.Line(new THREE.BufferGeometry().setFromPoints([pos, pos]), new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+  scene.add(head, trail); sfx.whistle();
+  shells.push({ head, trail, pos, col, vel: new THREE.Vector3(rand(-1.5, 1.5), rand(13, 16), rand(-1.5, 1.5)), type: pick(['sphere', 'ring', 'double', 'willow']) });
+}
+function explodeShell(s) {
+  const { pos, col } = s;
+  if (s.type === 'ring') { const tilt = new THREE.Euler(rand(-1, 1), 0, rand(-1, 1)); burst(pos, col, 160, 6, 2, 0.32, (i, n) => new THREE.Vector3(Math.cos(i / n * 6.28), 0, Math.sin(i / n * 6.28)).applyEuler(tilt)); }
+  else if (s.type === 'double') { burst(pos, col, 160, 6.5, 2, 0.32); burst(pos, new THREE.Color().setHSL((col.getHSL({}).h + 0.5) % 1, 1, 0.6), 100, 3.5, 1.6, 0.26); }
+  else if (s.type === 'willow') burst(pos, '#ffd27a', 220, 4, 3.2, 0.24);
+  else burst(pos, col, 240, 6.5, 2.2, 0.34);
+  flash(pos, col, 10, 0.45); sfx.fwBoom();
+  scene.remove(s.head, s.trail); disposeDeep(s.head); disposeDeep(s.trail);
+}
 export function fireworks() {
   const now = performance.now();
   if (pendingBursts.length > 14) return;
@@ -234,6 +343,8 @@ export function resetSpace() {
   sucking.splice(0).forEach(s => { if (s.obj.parent) { scene.remove(s.obj); disposeDeep(s.obj); } });
   while (bursts.length) killBurst(0);
   pendingBursts = [];
+  clearPlanetFx();
+  shells.splice(0).forEach(s => { scene.remove(s.head, s.trail); disposeDeep(s.head); disposeDeep(s.trail); });
 }
 export function setSpaceLevel(level) {
   star.visible = level >= 2; deepSpace.visible = level === 3;
@@ -243,7 +354,8 @@ export function setSpaceLevel(level) {
 // One of each dynamic material, so shaders compile at start-up instead of mid-game.
 export function warmupGroup() {
   const g = new THREE.Group();
-  const pm = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 8), std('#fff', { map: planetTexture('#ff4d5e'), emissive: '#ff4d5e', emissiveIntensity: 0.18 }));
+  const pm = new THREE.Mesh(new THREE.SphereGeometry(1, 8, 8), std('#fff', { map: planetTexture('#ff4d5e'), emissive: '#ff4d5e', emissiveIntensity: 0.22, roughness: 0.55 }));
+  pm.add(new THREE.Mesh(new THREE.SphereGeometry(1.18, 8, 8), atmoMat('#ff4d5e')));
   const ring = new THREE.Mesh(new THREE.RingGeometry(1.4, 2.1, 8), new THREE.MeshBasicMaterial({ color: '#fff', side: THREE.DoubleSide, transparent: true, opacity: 0.5 }));
   const pts = new THREE.Points(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3()]), new THREE.PointsMaterial({ color: '#fff', size: 0.3, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
   const rock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.5), std('#7a7f8c', { flatShading: true }));
@@ -253,18 +365,30 @@ export function warmupGroup() {
 
 export function updateSpace(dt, t) {
   star.rotation.y += dt * 0.1; galaxy.rotation.y += dt * 0.02;
+  updatePlanetFx(dt);
+  for (let i = shells.length - 1; i >= 0; i--) {
+    const s = shells[i]; s.vel.y -= 9.8 * dt; s.pos.addScaledVector(s.vel, dt); s.head.position.copy(s.pos);
+    const arr = s.trail.geometry.attributes.position.array; arr.set([s.pos.x, s.pos.y, s.pos.z, s.pos.x - s.vel.x * 0.15, s.pos.y - s.vel.y * 0.15, s.pos.z - s.vel.z * 0.15]); s.trail.geometry.attributes.position.needsUpdate = true;
+    if (s.vel.y < 2) { shells.splice(i, 1); explodeShell(s); }
+  }
 
   for (const p of [...planets]) {
     if (p.state === 'sucked' || p.state === 'gone') continue;
     p.grow = Math.min(1, p.grow + dt * 1.2);
     p.sizeNow += (p.size - p.sizeNow) * Math.min(1, dt * 4);
     if (p.state === 'alive') { p.angle += p.speed * dt; p.group.position.set(Math.sin(p.angle) * p.orbit, p.y, Math.cos(p.angle) * p.orbit); }
-    let s = p.sizeNow * easeOutBack(p.grow);
+    let s = p.sizeNow * easeOutBack(Math.max(0, p.grow));
+    if (p.state === 'alive') p.label.visible = p.grow > 0.3;
     if (p.state === 'dying') {
-      p.t += dt; s *= 1 + p.t * 1.5; p.mesh.material.emissiveIntensity = 0.18 + p.t * 8;
-      if (p.t > 0.35) {
+      p.t += dt; s *= 1 + p.t * 0.35 + Math.sin(p.t * 38) * 0.05;
+      p.mesh.material.emissiveIntensity = 0.3 + p.t * 5 + Math.sin(p.t * 40) * 0.6;
+      p.group.position.x += (Math.random() - 0.5) * 0.12; p.group.position.y += (Math.random() - 0.5) * 0.12;
+      view.shake = Math.max(view.shake, p.t * 0.25);
+      if (p.t > 0.9) {
         const at = p.group.position.clone(), col = COLORS[p.colorName];
-        removePlanet(p); burst(at, col, 260, 7, 1.8, 0.35); burst(at, '#ffd27a', 120, 4, 1.4, 0.25); view.shake = 0.5;
+        removePlanet(p);
+        flash(at, '#ffffff', 12, 0.45); flash(at, col, 18, 0.8); shock(at, col, 14); shock(at, '#ffd27a', 9); debrisFx(at, col);
+        burst(at, col, 300, 8, 2, 0.35); burst(at, '#ffd27a', 140, 4.5, 1.5, 0.28); view.shake = 0.9;
         continue;
       }
     }
@@ -298,7 +422,7 @@ export function updateSpace(dt, t) {
   const now = performance.now();
   while (pendingBursts.length && pendingBursts[0] <= now) {
     pendingBursts.shift();
-    burst(new THREE.Vector3(rand(-12, 12), rand(8, 14), rand(-8, 8)), new THREE.Color().setHSL(Math.random(), 1, 0.6));
+    launchShell();
   }
   for (let i = bursts.length - 1; i >= 0; i--) {
     const b = bursts[i]; b.t += dt;

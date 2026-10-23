@@ -1,10 +1,11 @@
 // Voice in (Web Speech recognition) and voice out (speech synthesis), hardened for Chrome quirks:
 // double-starts, permission prompts, missing `onend`, NOVA hearing herself, unsupported browsers.
+import { BOOST } from './nlu.js';
 const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const synth = 'speechSynthesis' in window ? window.speechSynthesis : null;
 
 export const voice = { supported: !!SR, listening: false, ttsOn: true };
-let rec = null, h = {}, starting = false, startTimer = 0, gotResult = false, errored = false, lastFinal = -1;
+let rec = null, h = {}, starting = false, startTimer = 0, gotResult = false, errored = false, lastFinal = -1, retry = false;
 
 export function initVoice(handlers) {
   h = handlers;
@@ -12,7 +13,8 @@ export function initVoice(handlers) {
   if (!SR) return;
   try {
     rec = new SR();
-    rec.lang = 'en-IN'; rec.interimResults = true; rec.maxAlternatives = 3; rec.continuous = false;
+    rec.lang = 'en-IN'; rec.interimResults = true; rec.maxAlternatives = 5; rec.continuous = false;
+    if ('phrases' in rec && window.SpeechRecognitionPhrase) try { rec.phrases = BOOST.map(p => new window.SpeechRecognitionPhrase(p, 3)); } catch { /* biasing not available */ }
   } catch { rec = null; voice.supported = false; return; }
   rec.onstart = () => { starting = false; clearTimeout(startTimer); voice.listening = true; safe(h.onStart); };
   rec.onresult = e => {
@@ -25,8 +27,16 @@ export function initVoice(handlers) {
       if (alts.length) safe(h.onFinal, alts, res[0].confidence || 0, i);
     }
   };
-  rec.onerror = e => { errored = true; safe(h.onError, e.error); };
-  rec.onend = () => { starting = false; clearTimeout(startTimer); voice.listening = false; safe(h.onEnd, gotResult, errored); };
+  rec.onerror = e => {
+    // this browser can't do word biasing: drop it and listen again, silently
+    if (e.error === 'phrases-not-supported') { try { rec.phrases = []; } catch { /* ignore */ } retry = true; return; }
+    errored = true; safe(h.onError, e.error);
+  };
+  rec.onend = () => {
+    starting = false; clearTimeout(startTimer); voice.listening = false;
+    if (retry) { retry = false; return setTimeout(listen, 50); }
+    safe(h.onEnd, gotResult, errored);
+  };
 }
 
 function safe(fn, ...args) { try { fn?.(...args); } catch (err) { h.onBug?.(err); } }

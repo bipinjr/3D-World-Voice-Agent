@@ -94,6 +94,18 @@ test('new powers', () => {
   assert.equal(parse('3 spaceships!', L(3)).count, 3);
 });
 
+test('speech mishearings, solar system, nature', () => {
+  assert.equal(parse('rock it launch', L(1)).intent, 'rocket');
+  assert.equal(parse('open the port all', L(3)).intent, 'portal');
+  assert.equal(parse('summon a you f o', L(1)).intent, 'ufo');
+  assert.equal(parse('wrap speed', L(3)).intent, 'warp');
+  const s = parse('create saturn', L(2));
+  assert.deepEqual([s.intent, s.name], ['createPlanet', 'Saturn']);
+  assert.equal(parse('create a planet named Jupiter', L(2)).name, 'Jupiter');
+  for (const [say, want] of [['plant a forest', 'forest'], ['make the flowers bloom', 'flowers'], ['erupt the volcano', 'volcano'], ['summon a tornado', 'tornado'], ['a flock of birds', 'birds'], ['release the fireflies', 'fireflies'], ['fireworks', 'fireworks']])
+    assert.equal(parse(say, L(1)).intent, want, say);
+});
+
 test('level 3 + misc', () => {
   assert.equal(parse('open the portal', L(3)).intent, 'portal');
   assert.equal(parse('close the portal', L(3)).intent, 'portalClose');

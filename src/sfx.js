@@ -48,6 +48,8 @@ export const sfx = {
   whoosh: play(() => { noise(0, 3.2, { vol: 0.5, from: 200, to: 6000, type: 'bandpass' }); tone(80, 0, 3.2, { type: 'sawtooth', vol: 0.06, to: 400 }); }),
   portal: play(() => { tone(220, 0, 1.4, { type: 'sine', vol: 0.2, to: 880 }); tone(330, 0.1, 1.4, { type: 'sine', vol: 0.12, to: 1320 }); }),
   ships: play(() => [0, 0.3, 0.6].forEach(s => tone(400, s, 0.6, { type: 'sawtooth', vol: 0.05, to: 1600 }))),
+  whistle: play(() => tone(500, 0, 1.1, { type: 'sine', vol: 0.05, to: 1700 })),
+  fwBoom: play(() => { noise(0, 0.9, { vol: 0.5, from: 1800, to: 80 }); tone(70, 0, 0.6, { vol: 0.3, to: 35 }); for (let i = 0; i < 10; i++) noise(0.15 + Math.random() * 0.8, 0.05, { vol: 0.1, from: 6000, to: 3000, type: 'highpass' }); }),
   pop: play(() => tone(300, 0, 0.25, { type: 'sine', vol: 0.25, to: 900 })),
   blackhole: play(() => { tone(110, 0, 3, { type: 'sawtooth', vol: 0.1, to: 30 }); noise(0, 3, { vol: 0.3, from: 3000, to: 80 }); }),
 };
