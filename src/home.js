@@ -23,28 +23,67 @@ lab.add(skySun, skyMoon);
   const grid = new THREE.Mesh(new THREE.RingGeometry(0.6, 8.9, 96), gridMat); grid.rotation.x = -Math.PI / 2; grid.position.y = 0.02; lab.add(grid);
 }
 
-// ---------- rocket
+// ---------- rocket: curved metal body, swept fins, neon bands that pulse in the world's colour
 const rocket = new THREE.Group();
+const accent = new THREE.Color('#38e1ff'); // world colour, set by applyHomeTheme
+const bandMat = new THREE.MeshBasicMaterial({ color: '#38e1ff' });
+const noseLight = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 12), new THREE.MeshBasicMaterial({ color: '#ff3b5c' }));
+const nozzleGlow = new THREE.Mesh(new THREE.CircleGeometry(0.33, 32), new THREE.MeshBasicMaterial({ color: '#ff9a3d' }));
 {
-  const white = std('#f2f5ff', { metalness: 0.2, roughness: 0.4 }), red = std('#ff3b5c');
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.6, 3, 24), white); body.position.y = 1.8;
-  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.2, 24), red); nose.position.y = 3.9;
-  const win = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), new THREE.MeshBasicMaterial({ color: '#38e1ff' })); win.position.set(0, 2.5, 0.48);
-  rocket.add(body, nose, win);
-  for (let i = 0; i < 3; i++) {
-    const fin = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.9, 0.7), red);
-    const a = i * Math.PI * 2 / 3; fin.position.set(Math.sin(a) * 0.6, 0.75, Math.cos(a) * 0.6); fin.rotation.y = a; rocket.add(fin);
+  const metal = std('#f4f7ff', { metalness: 0.15, roughness: 0.35 }), red = std('#ff3b5c', { metalness: 0.15, roughness: 0.4, emissive: '#5a0716' }), dark = std('#2a3150', { metalness: 0.8, roughness: 0.3 });
+  const v = pts => pts.map(([x, y]) => new THREE.Vector2(x, y));
+  const body = new THREE.Mesh(new THREE.LatheGeometry(v([[0, 0], [0.6, 0], [0.66, 0.25], [0.68, 2.3], [0.6, 3.0], [0.44, 3.6], [0, 3.6]]), 48), metal);
+  const nose = new THREE.Mesh(new THREE.LatheGeometry(v([[0.44, 3.6], [0.3, 3.95], [0.16, 4.25], [0.05, 4.45], [0, 4.5]]), 48), red);
+  rocket.add(body, nose);
+  for (const [y, r] of [[0.55, 0.665], [2.05, 0.69]]) { const b = new THREE.Mesh(new THREE.TorusGeometry(r, 0.045, 8, 64), bandMat); b.rotation.x = Math.PI / 2; b.position.y = y; rocket.add(b); }
+  for (const y of [2.75, 2.4]) {
+    const win = new THREE.Mesh(new THREE.SphereGeometry(0.13, 16, 16), new THREE.MeshBasicMaterial({ color: '#9ff6ff' })); win.position.set(0, y, 0.63);
+    const rim = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.03, 8, 24), dark); rim.position.set(0, y, 0.64);
+    rocket.add(win, rim);
   }
+  const finShape = new THREE.Shape(); finShape.moveTo(0, 1.4); finShape.lineTo(0.9, 0.35); finShape.lineTo(0.95, -0.15); finShape.lineTo(0, 0.1); finShape.closePath();
+  const finGeo = new THREE.ExtrudeGeometry(finShape, { depth: 0.08, bevelEnabled: true, bevelSize: 0.02, bevelThickness: 0.02, bevelSegments: 1 }); finGeo.translate(0, 0, -0.04);
+  for (let i = 0; i < 4; i++) {
+    const a = i * Math.PI / 2 + Math.PI / 4, fin = new THREE.Mesh(finGeo, red);
+    fin.position.set(Math.sin(a) * 0.6, 0, Math.cos(a) * 0.6); fin.rotation.y = a - Math.PI / 2; rocket.add(fin);
+  }
+  const nozzle = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.52, 0.45, 32, 1, true), dark); nozzle.position.y = -0.2;
+  nozzleGlow.rotation.x = Math.PI / 2; nozzleGlow.position.y = -0.4;
+  noseLight.position.y = 4.55;
+  rocket.add(nozzle, nozzleGlow, noseLight);
 }
+// layered flame: orange outside, yellow middle, white-hot core
 const flame = new THREE.Group();
-flame.add(new THREE.Mesh(new THREE.ConeGeometry(0.45, 1.6, 16), new THREE.MeshBasicMaterial({ color: '#ff8a2b', transparent: true, opacity: 0.85 })));
-const core = new THREE.Mesh(new THREE.ConeGeometry(0.25, 1, 16), new THREE.MeshBasicMaterial({ color: '#fff2a8' })); core.position.y = 0.25; flame.add(core);
-flame.rotation.x = Math.PI; flame.position.y = -0.5; flame.scale.setScalar(0.001); rocket.add(flame);
-const PAD = new THREE.Vector3(-4.5, 0.3, 1.2);
+[[0.5, 2.2, '#ff5a1f', 0.75], [0.34, 1.6, '#ffb347', 0.9], [0.18, 1.0, '#fff6d0', 1]].forEach(([r, h, c, o]) => {
+  const m = new THREE.Mesh(new THREE.ConeGeometry(r, h, 20, 1, true), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: o, blending: THREE.AdditiveBlending, depthWrite: false }));
+  m.position.y = h / 2 - 0.1; flame.add(m);
+});
+flame.rotation.x = Math.PI; flame.position.y = -0.42; flame.scale.setScalar(0.001); rocket.add(flame);
+const PAD = new THREE.Vector3(-4.5, 0.75, 1.2);
 rocket.position.copy(PAD); lab.add(rocket);
 // the glow light lives in the scene (not inside `lab`) so hiding the island never changes the light count
 const rocketGlow = new THREE.PointLight('#ff8a2b', 0, 18); scene.add(rocketGlow);
 const pad = new THREE.Mesh(new THREE.CylinderGeometry(1.4, 1.6, 0.3, 32), std('#3a4670', { metalness: 0.5 })); pad.position.set(PAD.x, 0.15, PAD.z); lab.add(pad);
+const padRing = new THREE.Mesh(new THREE.TorusGeometry(1.45, 0.05, 8, 64), bandMat); padRing.rotation.x = Math.PI / 2; padRing.position.set(PAD.x, 0.31, PAD.z); lab.add(padRing);
+// hologram scan rings that sweep up the waiting rocket
+const holo = [0, 1, 2].map(() => {
+  const r = new THREE.Mesh(new THREE.TorusGeometry(1.0, 0.025, 8, 64), new THREE.MeshBasicMaterial({ color: '#38e1ff', transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false }));
+  r.rotation.x = Math.PI / 2; lab.add(r); return r;
+});
+// exhaust: glowing particles that fade from white-hot to smoke
+const EXN = 700, exPos = new Float32Array(EXN * 3), exCol = new Float32Array(EXN * 3), exVel = new Float32Array(EXN * 3), exLife = new Float32Array(EXN), exMax = new Float32Array(EXN);
+const exGeo = new THREE.BufferGeometry(); exGeo.setAttribute('position', new THREE.BufferAttribute(exPos, 3)); exGeo.setAttribute('color', new THREE.BufferAttribute(exCol, 3));
+const exhaust = new THREE.Points(exGeo, new THREE.PointsMaterial({ map: glowTex, size: 0.6, vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+exhaust.frustumCulled = false; lab.add(exhaust);
+let exNext = 0;
+function emit(n, x, y, z, spread, vy, life) {
+  for (let k = 0; k < n; k++) {
+    const i = exNext; exNext = (exNext + 1) % EXN;
+    exPos.set([x + rand(-0.15, 0.15), y, z + rand(-0.15, 0.15)], i * 3);
+    exVel.set([rand(-spread, spread), vy * rand(0.7, 1.2), rand(-spread, spread)], i * 3);
+    exLife[i] = exMax[i] = life * rand(0.6, 1);
+  }
+}
 
 // ---------- rain / bubbles + clouds
 const RAIN = 1600, rainArr = new Float32Array(RAIN * 6);
@@ -187,7 +226,7 @@ export const home = { theme: THEMES.space, themeKey: 'space', rk: { phase: 'idle
 export function applyHomeTheme(key) {
   const th = THEMES[key] || THEMES.space;
   home.theme = th; home.themeKey = THEMES[key] ? key : 'space';
-  islandMat.color.set(th.ground); rimMat.color.set(th.rim); gridMat.color.set(th.rim); rain.material.color.set(th.rain);
+  islandMat.color.set(th.ground); rimMat.color.set(th.rim); accent.set(th.rim); holo.forEach(r => r.material.color.set(th.rim)); gridMat.color.set(th.rim); rain.material.color.set(th.rain);
   for (const k in THEMES) THEMES[k].props.visible = THEMES[k] === th;
   skySun.visible = skyMoon.visible = !th.up;
   return th;
@@ -205,7 +244,8 @@ export function quake() { home.quakeT = 2.5; }
 export function setDay(on) { home.isDay = on; }
 export function resetHome() {
   Object.assign(home.rk, { phase: 'idle', t: 0, v: 0 });
-  rocket.position.copy(PAD); flame.scale.setScalar(0.001); rocketGlow.intensity = 0;
+  rocket.position.copy(PAD); rocket.rotation.y = 0; flame.scale.setScalar(0.001); rocketGlow.intensity = 0;
+  exLife.fill(0); exCol.fill(0);
   home.rainOn = false; home.isDay = false; home.snow = false; home.rainbowT = 0; home.quakeT = 0; home.strikes = []; lab.position.y = 0;
 }
 export function setHomeLevel(level) {
@@ -218,19 +258,40 @@ export function updateHome(dt, t, level) {
   if (rk.phase === 'countdown') {
     rk.t += dt; flame.scale.setScalar(Math.min(1, rk.t) * (0.8 + Math.random() * 0.3)); rocketGlow.intensity = 30 * Math.min(1, rk.t);
     rocket.position.x = PAD.x + (Math.random() - 0.5) * 0.06; view.shake = Math.max(view.shake, 0.08);
+    emit(8, PAD.x, 0.35, PAD.z, 3.5, 0.4, 1.6); // billowing cloud at the pad
     if (rk.t > 1.2) { rk.phase = 'flying'; rk.v = 0; rocket.position.x = PAD.x; }
   } else if (rk.phase === 'flying') {
-    rk.v += dt * 14; rocket.position.y += rk.v * dt; flame.scale.setScalar(1 + Math.random() * 0.4);
+    rk.v += dt * 14; rocket.position.y += rk.v * dt; flame.scale.set(1 + Math.random() * 0.15, 1 + Math.random() * 0.5, 1 + Math.random() * 0.15);
+    rocket.rotation.y += dt * 1.4; emit(12, rocket.position.x, rocket.position.y - 0.6, rocket.position.z, 0.9, -7, 1.3);
     view.shake = Math.max(view.shake, 0.15 - rocket.position.y * 0.004);
     if (rocket.position.y > 70) { rk.phase = 'gone'; rk.t = 0; }
   } else if (rk.phase === 'gone') {
     rk.t += dt; rocketGlow.intensity = 0; if (rk.t > 2.5) { rk.phase = 'landing'; rocket.position.y = 25; }
   } else if (rk.phase === 'landing') {
     rocket.position.y = PAD.y + (rocket.position.y - PAD.y) * Math.pow(0.25, dt);
-    flame.scale.setScalar(0.5 + Math.random() * 0.2); rocketGlow.intensity = 12;
-    if (rocket.position.y - PAD.y < 0.03) { rocket.position.y = PAD.y; rk.phase = 'idle'; flame.scale.setScalar(0.001); rocketGlow.intensity = 0; }
+    flame.scale.setScalar(0.5 + Math.random() * 0.2); rocketGlow.intensity = 12; emit(4, rocket.position.x, rocket.position.y - 0.6, rocket.position.z, 0.5, -4, 0.8);
+    if (rocket.position.y - PAD.y < 0.03) { rocket.position.y = PAD.y; rocket.rotation.y = 0; rk.phase = 'idle'; flame.scale.setScalar(0.001); rocketGlow.intensity = 0; }
   }
   rocketGlow.position.set(rocket.position.x, rocket.position.y - 0.5, rocket.position.z);
+  // camera tilts up to follow the launch, then settles back
+  const followTarget = level === 1 && (rk.phase === 'countdown' || rk.phase === 'flying') ? Math.min(rocket.position.y - PAD.y, 28) : 0;
+  view.follow += (followTarget - view.follow) * Math.min(1, dt * 2.5);
+  // idle life: neon bands breathe, nose light blinks, hologram rings scan up the rocket
+  bandMat.color.copy(accent).multiplyScalar(0.7 + 0.5 * Math.sin(t * 2.2));
+  noseLight.visible = Math.sin(t * 5) > 0;
+  const idle = rk.phase === 'idle';
+  holo.forEach((r, i) => { const k = (t * 0.35 + i / holo.length) % 1; r.visible = idle; r.position.set(PAD.x, PAD.y + k * 4.2, PAD.z); r.material.opacity = Math.sin(k * Math.PI) * 0.7; r.scale.setScalar(1 - k * 0.35); });
+  nozzleGlow.material.color.setRGB(1, 0.6, 0.25).multiplyScalar(idle ? 0.25 + 0.1 * Math.sin(t * 3) : 1.6);
+  for (let i = 0; i < EXN; i++) {
+    if (exLife[i] <= 0) continue;
+    exLife[i] -= dt; const j = i * 3;
+    if (exLife[i] <= 0) { exCol[j] = exCol[j + 1] = exCol[j + 2] = 0; continue; }
+    exVel[j] *= 0.97; exVel[j + 2] *= 0.97; exVel[j + 1] = exVel[j + 1] * 0.97 + dt * 1.5; // smoke drifts up
+    exPos[j] += exVel[j] * dt; exPos[j + 1] += exVel[j + 1] * dt; exPos[j + 2] += exVel[j + 2] * dt;
+    const f = exLife[i] / exMax[i], hot = Math.min(1, Math.max(0, (f - 0.45) / 0.55)), fade = Math.min(1, f * 3);
+    exCol[j] = (0.35 + 1.45 * hot) * fade; exCol[j + 1] = (0.3 + hot * hot) * fade; exCol[j + 2] = (0.32 + 0.3 * hot * hot * hot) * fade;
+  }
+  exGeo.attributes.position.needsUpdate = true; exGeo.attributes.color.needsUpdate = true;
   if (level !== 1) rocketGlow.intensity = 0;
 
   const th = home.theme;

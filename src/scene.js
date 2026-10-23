@@ -22,7 +22,7 @@ scene.fog = new THREE.Fog(bg, 35, 95);
 export const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 600);
 scene.add(camera);
 // camera orbit state, shared by all modules
-export const view = { angle: 0, r: 21, h: 8, y: -1.5, shake: 0, zoom: 1, spin: 0 };
+export const view = { angle: 0, r: 21, h: 8, y: -1.5, shake: 0, zoom: 1, spin: 0, follow: 0 };
 export const photo = { cb: null }; // set a callback to grab the next rendered frame
 
 // Glow: only bright things (neon, sun, portal, fireworks) bloom.

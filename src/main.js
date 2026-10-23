@@ -42,7 +42,7 @@ function frame(dt, t) {
   camera.position.set(Math.sin(view.angle) * view.r, view.h, Math.cos(view.angle) * view.r);
   if (!reduceMotion && view.shake > 0.001) camera.position.add(shakeVec.set((Math.random() - 0.5) * view.shake, (Math.random() - 0.5) * view.shake, 0));
   view.shake *= Math.pow(0.1, dt);
-  camera.lookAt(0, view.y, 0);
+  camera.lookAt(0, view.y + view.follow * 0.75, 0);
   if (warming) return;
   composer.render(dt);
   if (photo.cb) { const cb = photo.cb; photo.cb = null; cb(renderer.domElement.toDataURL('image/png')); } // same frame, so the canvas still holds the image
