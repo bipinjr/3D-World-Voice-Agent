@@ -52,7 +52,7 @@ test('spaceships and counts', () => {
   const s = parse('launch spaceships', L(3));
   assert.deepEqual([s.intent, s.count, s.plural], ['ships', null, true]);
   assert.equal(parse('launch 3 spaceships', L(3)).count, 3);
-  assert.equal(parse('send five ufos', L(3)).count, 5);
+  assert.equal(parse('send five ships', L(3)).count, 5);
   assert.equal(parse('launch a spaceship', L(3)).count, 1);
   assert.equal(extractCount('five'), 5);
   assert.equal(extractCount('I want 12'), 12);
@@ -72,6 +72,26 @@ test('travel between worlds', () => {
   assert.equal(parse('go through the portal', L(3)).intent, 'travel');
   assert.equal(parse('open the portal', L(3)).intent, 'portal');
   assert.equal(parse('create a new world', L(2)).intent, 'createPlanet');
+});
+
+test('new powers', () => {
+  const t = s => parse(s, L(1)).intent;
+  assert.equal(t('make it snow'), 'snow');
+  assert.equal(t('strike lightning'), 'lightning');
+  assert.equal(t('show me a rainbow'), 'rainbow');
+  assert.equal(t('make it rain'), 'rain');
+  assert.equal(t('meteor shower'), 'meteors');
+  assert.equal(t('show the northern lights'), 'aurora');
+  assert.equal(t('summon a ufo'), 'ufo');
+  assert.equal(t('earthquake'), 'earthquake');
+  assert.equal(t("let's dance"), 'disco');
+  assert.deepEqual([t('zoom out'), parse('zoom out', L(1)).dir], ['zoom', 'out']);
+  assert.equal(parse('come closer', L(1)).dir, 'in');
+  assert.equal(t('spin around'), 'spin');
+  assert.equal(t('take a photo'), 'photo');
+  assert.equal(t('turn it green'), 'unknown');
+  assert.equal(parse('Red planet!', L(1)).color, 'red'); // speed challenge short forms
+  assert.equal(parse('3 spaceships!', L(3)).count, 3);
 });
 
 test('level 3 + misc', () => {

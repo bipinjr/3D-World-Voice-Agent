@@ -1,6 +1,6 @@
 // Level 1: the home-base island, rocket, weather, day/night and the 4 world themes.
 import * as THREE from 'three';
-import { scene, camera, view } from './scene.js';
+import { scene, camera, view, glowTex } from './scene.js';
 import { rand, pick, std, canvasTex } from './util.js';
 
 export const lab = new THREE.Group(); scene.add(lab);
@@ -61,6 +61,23 @@ for (const [cx, cz] of [[-5, -2], [3, 2], [0, -6], [6, -4]]) for (let k = 0; k <
   p.position.set(cx + (k - 2) * 1.1, 11 + Math.random() * 0.8, cz + Math.random() * 1.2); clouds.add(p);
 }
 lab.add(rain, clouds);
+// snow reuses the rain drops, drawn as soft dots that fall slowly
+const snow = new THREE.Points(rainGeo, new THREE.PointsMaterial({ map: glowTex, color: '#dfe8ff', size: 0.2, transparent: true, opacity: 0, depthWrite: false }));
+snow.visible = false; lab.add(snow);
+// rainbow: seven arcs that always face the camera
+const rainbow = new THREE.Group();
+['#ff4d5e', '#ff9a3d', '#ffe14d', '#46e38a', '#3de8ff', '#4d8bff', '#a35bff'].forEach((c, i) =>
+  rainbow.add(new THREE.Mesh(new THREE.TorusGeometry(14 - i * 0.45, 0.2, 8, 80, Math.PI), new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0, depthWrite: false }))));
+rainbow.visible = false; lab.add(rainbow);
+// lightning bolt: a jagged line rebuilt for every strike
+const bolt = new THREE.Line(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: '#f2f8ff', transparent: true, opacity: 0 }));
+lab.add(bolt);
+function newBolt() {
+  const pts = [], x0 = rand(-6, 6), z0 = rand(-6, 4);
+  for (let i = 0; i <= 12; i++) pts.push(new THREE.Vector3(x0 + (i ? rand(-0.9, 0.9) : 0), 18 - i * 1.5, z0 + (i ? rand(-0.9, 0.9) : 0)));
+  bolt.geometry.dispose(); bolt.geometry = new THREE.BufferGeometry().setFromPoints(pts);
+}
+
 
 // ---------- theme props
 function windowsTex(lit, base = '#0b0b18') {
@@ -164,7 +181,7 @@ Object.assign(THEMES.smart, { hero: 'Byte', hello: 'Everything here runs on AI a
   nebula: ['#7cff8a', '#38e1ff', '#ffe14d', '#5aa2ff'], names: ['Byte', 'Solaris', 'Pixel', 'Volt', 'Quantum', 'Nimbus', 'Echo', 'Grid', 'Cloud'] });
 Object.values(THEMES).forEach(th => lab.add(th.props));
 
-export const home = { theme: THEMES.space, themeKey: 'space', rk: { phase: 'idle', t: 0, v: 0 }, rainOn: false, rainLevel: 0, rainTimer: 0, flash: 0, isDay: false, dayT: 0 };
+export const home = { theme: THEMES.space, themeKey: 'space', rk: { phase: 'idle', t: 0, v: 0 }, rainOn: false, rainLevel: 0, rainTimer: 0, flash: 0, isDay: false, dayT: 0, snow: false, rainbowT: 0, quakeT: 0, strikes: [] };
 
 // Changes colours/props; sky colours are applied by the caller (they live in scene.js)
 export function applyHomeTheme(key) {
@@ -180,12 +197,16 @@ export function launchRocket() {
   if (home.rk.phase !== 'idle') return false;
   home.rk.phase = 'countdown'; home.rk.t = 0; return true;
 }
-export function setRain(on) { home.rainOn = on; if (on) home.rainTimer = 15; }
+export function setRain(on) { home.rainOn = on; home.snow = false; if (on) home.rainTimer = 15; }
+export function setSnow(on) { home.rainOn = on; home.snow = on; if (on) home.rainTimer = 15; }
+export function showRainbow() { home.rainbowT = 12; }
+export function strikeLightning() { const now = performance.now(); home.strikes.push(now, now + 650, now + 1400); }
+export function quake() { home.quakeT = 2.5; }
 export function setDay(on) { home.isDay = on; }
 export function resetHome() {
   Object.assign(home.rk, { phase: 'idle', t: 0, v: 0 });
   rocket.position.copy(PAD); flame.scale.setScalar(0.001); rocketGlow.intensity = 0;
-  home.rainOn = false; home.isDay = false;
+  home.rainOn = false; home.isDay = false; home.snow = false; home.rainbowT = 0; home.quakeT = 0; home.strikes = []; lab.position.y = 0;
 }
 export function setHomeLevel(level) {
   lab.visible = level === 1;
@@ -216,19 +237,34 @@ export function updateHome(dt, t, level) {
   if (home.rainOn) { home.rainTimer -= dt; if (home.rainTimer <= 0) home.rainOn = false; }
   const rainTarget = home.rainOn ? 1 : th.up && level === 1 ? 0.25 : 0;
   home.rainLevel += (rainTarget - home.rainLevel) * Math.min(1, dt * 2);
-  rain.visible = clouds.visible = home.rainLevel > 0.01;
+  const wet = home.rainLevel > 0.01;
+  rain.visible = wet && !home.snow; snow.visible = wet && home.snow; clouds.visible = wet; snow.material.opacity = home.rainLevel;
   rain.material.opacity = home.rainLevel * 0.7; cloudMat.opacity = th.up ? 0 : home.rainLevel * 0.9;
-  if (rain.visible) {
-    const v = th.up ? 6 : -24;
+  if (wet) {
+    const v = th.up ? 6 : home.snow ? -3 : -24;
     for (let i = 0; i < RAIN; i++) {
       const k = i * 6; rainArr[k + 1] += v * dt; rainArr[k + 4] += v * dt;
       if (rainArr[k + 4] < 0) { rainArr[k + 1] += 22; rainArr[k + 4] += 22; } else if (rainArr[k + 4] > 22) { rainArr[k + 1] -= 22; rainArr[k + 4] -= 22; }
     }
     rainGeo.attributes.position.needsUpdate = true;
-    if (home.rainLevel > 0.6 && !th.up && Math.random() < dt * 0.4) home.flash = 1;
+    if (home.rainLevel > 0.6 && !th.up && !home.snow && Math.random() < dt * 0.4) home.flash = 1;
   }
   home.flash *= Math.pow(0.02, dt);
   home.dayT += ((home.isDay ? 1 : 0) - home.dayT) * Math.min(1, dt * 1.5);
   skySun.scale.setScalar(Math.max(0.001, home.dayT)); skyMoon.scale.setScalar(Math.max(0.001, 1 - home.dayT));
+  // rainbow fades in and out, always facing the camera
+  home.rainbowT = Math.max(0, home.rainbowT - dt);
+  rainbow.visible = home.rainbowT > 0;
+  if (rainbow.visible) {
+    const o = Math.min(1, home.rainbowT / 1.5, (12 - home.rainbowT) / 1.5) * 0.6;
+    rainbow.children.forEach(m => { m.material.opacity = o; });
+    rainbow.rotation.y = Math.atan2(camera.position.x, camera.position.z);
+  }
+  // lightning strikes
+  const now = performance.now();
+  while (home.strikes.length && home.strikes[0] <= now) { home.strikes.shift(); newBolt(); bolt.material.opacity = 1; home.flash = 1; view.shake = Math.max(view.shake, 0.3); }
+  bolt.material.opacity *= Math.pow(0.002, dt);
+  // earthquake
+  if (home.quakeT > 0) { home.quakeT -= dt; view.shake = Math.max(view.shake, 0.6); lab.position.y = Math.sin(t * 45) * 0.12; } else lab.position.y = 0;
   if (lab.visible) th.props.userData.anim?.(t, dt);
 }

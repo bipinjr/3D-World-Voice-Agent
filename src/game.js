@@ -1,9 +1,10 @@
 // Game flow: levels, missions, scoring, and NOVA turning intents into actions + replies.
-import { scene, NIGHT, DAY, STORM, SPACE_BG, sparkles } from './scene.js';
-import { home, THEMES, applyHomeTheme, launchRocket, setRain, setDay, resetHome, setHomeLevel } from './home.js';
+import { scene, NIGHT, DAY, STORM, SPACE_BG, sparkles, photo } from './scene.js';
+import { home, THEMES, applyHomeTheme, launchRocket, setRain, setDay, resetHome, setHomeLevel, setSnow, showRainbow, strikeLightning, quake } from './home.js';
+import { showAurora, meteorShower, summonUfo, disco, pulse, zoom, spin, resetFx } from './fx.js';
 import { applySpaceTheme, space, alivePlanets, createPlanet, freshName, recolor, addMoon, explodePlanet, fireworks, launchShips, summonBlackHole, startWarp, isWarping, resetSpace, setSpaceLevel } from './space.js';
 import { parse, resolveTarget, extractCount, norm, SIZES, AVAIL, describe, INTENT_NAMES } from './nlu.js';
-import { voice, initVoice, listen, speak, cancelSpeech, englishVoices, isNatural, setVoiceName, currentVoice } from './voice.js';
+import { voice, initVoice, listen, speak, cancelSpeech, setContinuous, stopListening, englishVoices, isNatural, setVoiceName, currentVoice } from './voice.js';
 import * as ui from './ui.js';
 import { $, pick } from './util.js';
 import { sfx, initSfx, setSound, duck, setMusic } from './sfx.js';
@@ -11,7 +12,7 @@ import { addScore, loadBoard, saveBoard, cleanName } from './leaderboard.js';
 
 export const LEVELS = [null,
   { name: 'Space Lab', emoji: '🚀', cam: { r: 21, h: 8.5, y: -2.8 }, intro: '',
-    free: 'Also try: <q>stop the rain</q>, <q>take me to underwater base</q>, <q>what can I say?</q>',
+    free: 'Also try: <q>make it snow</q>, <q>rainbow</q>, <q>lightning</q>, <q>summon a UFO</q>, <q>earthquake</q>, <q>take a photo</q>',
     missions: [
       { id: 'rocket', emoji: '🚀', title: 'Launch the rocket', say: 'Launch the rocket', tap: () => ({ intent: 'rocket' }) },
       { id: 'rain', emoji: '🌧️', title: 'Change the weather', say: 'Make it rain', tap: () => ({ intent: 'rain' }) },
@@ -29,7 +30,7 @@ export const LEVELS = [null,
     ] },
   { name: 'Galaxy Commander', emoji: '🌌', cam: { r: 40, h: 16, y: -3.5 },
     intro: 'Final level! You command the whole galaxy. Try saying: open the portal.',
-    free: 'Also try: <q>go through the portal</q>, <q>create a planet called Rocky</q> then a black hole!',
+    free: 'Also try: <q>disco</q>, <q>meteor shower</q>, <q>zoom in</q>, <q>spin around</q>, <q>go through the portal</q>',
     missions: [
       { id: 'portal', emoji: '🌀', title: 'Open a portal', say: 'Open the portal', tap: () => ({ intent: 'portal' }) },
       { id: 'ships', emoji: '🛸', title: 'Send a fleet', say: 'Launch 3 spaceships', tap: () => ({ intent: 'ships', count: 3 }) },
@@ -42,16 +43,30 @@ export const LEVELS = [null,
 const MODES = {
   story: { name: 'Story', board: 'story', desc: 'Guided missions across 3 levels: your world, a solar system and the galaxy.', done: 'All 3 levels complete', lead: 'You built a universe using only your voice and AI!',
     rank: s => (s >= 1500 ? ['Galaxy Commander', '👑'] : s >= 1000 ? ['Star Captain', '🏅'] : ['Space Cadet', '⭐']) },
-  challenge: { name: 'Speed Challenge', board: 'challenge', desc: '90 seconds. Say each command on screen as fast as you can. Combos give bonus points!', done: "Time's up", lead: 'Lightning-fast voice commands. NOVA could barely keep up!',
-    rank: s => (s >= 2000 ? ['Lightning Commander', '⚡'] : s >= 1000 ? ['Quick Thinker', '🏅'] : ['Rookie Racer', '⭐']) },
+  challenge: { name: 'Speed Challenge', board: 'challenge', desc: '60 seconds of rapid-fire commands. Each one must be said within 2–3.5 seconds. Faster answers and combos score more!', done: "Time's up", lead: 'Lightning-fast voice commands. NOVA could barely keep up!',
+    rank: s => (s >= 5000 ? ['Lightning Commander', '⚡'] : s >= 2500 ? ['Quick Thinker', '🏅'] : ['Rookie Racer', '⭐']) },
   free: { name: 'Free Play', board: null, desc: 'Everything unlocked. Say anything in any order and discover all 12 powers.', done: 'Free play complete', lead: 'You explored the powers of a voice-controlled AI world!',
     rank: () => ['Master Creator', '🎨'] },
   learn: { name: 'Learn AI', board: 'story', desc: 'The story levels, but NOVA explains how she understood each sentence. Great for learning AI!', done: 'AI training complete', lead: 'You now know how a voice AI understands people!',
     rank: s => (s >= 1500 ? ['AI Engineer', '🧠'] : s >= 1000 ? ['AI Apprentice', '🏅'] : ['AI Explorer', '⭐']) },
 };
-const FREE = { name: 'Free Play', emoji: '🎨', free: 'Say anything, in any order! NOVA warps between your world and space for you.', get missions() { return LEVELS.slice(1).flatMap(l => l.missions); } };
-const CHALLENGE_SECS = 90;
-const challenge = { running: false, left: CHALLENGE_SECS, prompt: null, combo: 0, bestCombo: 0, correct: 0, timer: 0, voice: false };
+// Extra powers: listed in free play, used in the speed challenge, and fun extras in story mode
+const BONUS = [
+  { id: 'snow', emoji: '❄️', title: 'Make it snow', say: 'Make it snow', tap: () => ({ intent: 'snow' }) },
+  { id: 'lightning', emoji: '⚡', title: 'Lightning strike', say: 'Lightning!', tap: () => ({ intent: 'lightning' }) },
+  { id: 'rainbow', emoji: '🌈', title: 'Paint a rainbow', say: 'Show me a rainbow', tap: () => ({ intent: 'rainbow' }) },
+  { id: 'earthquake', emoji: '🌋', title: 'Shake the world', say: 'Earthquake!', tap: () => ({ intent: 'earthquake' }) },
+  { id: 'meteors', emoji: '☄️', title: 'Meteor shower', say: 'Meteor shower', tap: () => ({ intent: 'meteors' }) },
+  { id: 'aurora', emoji: '🌌', title: 'Northern lights', say: 'Show the aurora', tap: () => ({ intent: 'aurora' }) },
+  { id: 'ufo', emoji: '👽', title: 'Call a UFO', say: 'Summon a UFO', tap: () => ({ intent: 'ufo' }) },
+  { id: 'disco', emoji: '🪩', title: 'Disco mode', say: "Let's dance!", tap: () => ({ intent: 'disco' }) },
+  { id: 'zoom', emoji: '🔍', title: 'Zoom the camera', say: 'Zoom in', tap: () => ({ intent: 'zoom', dir: 'in' }) },
+  { id: 'spin', emoji: '🔄', title: 'Spin around', say: 'Spin around', tap: () => ({ intent: 'spin' }) },
+];
+
+const FREE = { name: 'Free Play', emoji: '🎨', free: 'Say anything, in any order! NOVA warps between your world and space for you.', get missions() { return [...LEVELS.slice(1).flatMap(l => l.missions), ...BONUS]; } };
+const CHALLENGE_SECS = 60;
+const challenge = { running: false, left: CHALLENGE_SECS, prompt: null, combo: 0, bestCombo: 0, correct: 0, missed: 0, timer: 0, voice: false, hitIdx: -1, deadline: 0, windowMs: 3500, endAt: 0 };
 const CHALLENGE = {
   name: 'Speed Challenge', emoji: '⚡', free: 'Say the command at the top as fast as you can! Say <q>skip</q> to pass.',
   get missions() { return challenge.prompt ? [{ id: 'now', emoji: challenge.prompt.emoji, title: 'Say it now!', say: challenge.prompt.say }] : []; },
@@ -60,10 +75,11 @@ const CHALLENGE = {
 const def = () => (state.mode === 'free' ? FREE : state.mode === 'challenge' ? CHALLENGE : LEVELS[state.level]);
 const label = () => (state.mode === 'free' ? `🎨 FREE PLAY · ${home.theme.name}` : state.mode === 'challenge' ? `⚡ CHALLENGE · ${home.theme.name}`
   : `${state.mode === 'learn' ? 'LEARN AI · ' : ''}LEVEL ${state.level} · ${LEVELS[state.level].name}`).toUpperCase();
-const title = () => (state.mode === 'free' ? '🎨 Discover all 12 powers' : state.mode === 'challenge' ? '⚡ Say it now!' : `🎯 Level ${state.level} missions`);
+const title = () => (state.mode === 'free' ? `🎨 Discover all ${FREE.missions.length} powers` : state.mode === 'challenge' ? '⚡ Say it now!' : `🎯 Level ${state.level} missions`);
 
 // Free play / challenge: warp to the island or to space, whichever the command needs
 function switchScene(n, then) {
+  if (challenge.running) { setLevel(n); const f = $('#flashFx'); f.style.opacity = 0.6; setTimeout(() => { f.style.opacity = 0; }, 120); return then(); } // speed challenge: no warp, just a flash
   if (state.busy || isWarping()) return nova('Hold on, we are already warping!');
   state.busy = true; setPending(null); sfx.whoosh();
   nova(n === 1 ? `Taking you back to ${home.theme.name}!` : 'Blasting off to space!');
@@ -77,59 +93,88 @@ function explain(p) {
   return `How I knew: the words ${words || 'you said'} mean ${(INTENT_NAMES[p.intent] || p.intent).toLowerCase()}${det.length ? `, with ${det.join(', ')}` : ''}.`;
 }
 
-// ---------- speed challenge
-function makePrompt() {
-  const th = home.theme, keys = Object.keys(THEMES);
+// ---------- speed challenge: rapid-fire commands, each inside a window that shrinks from 3.5 s to 2 s
+function quickPool() {
   const color = pick(['red', 'blue', 'green', 'pink', 'orange', 'purple']), n = 2 + Math.floor(Math.random() * 4);
-  const name = pick(th.names.filter(x => !x.includes(' '))), world = pick(keys.filter(k => k !== home.themeKey));
-  const pool = [
-    ['🚀', 'Launch the rocket', p => p.intent === 'rocket'],
-    ['🌧️', 'Make it rain', p => p.intent === 'rain'],
-    ['☀️', 'Make it day', p => p.intent === 'day'],
-    ['🌙', 'Make it night', p => p.intent === 'night'],
+  return [
+    ['🚀', 'Rocket!', p => p.intent === 'rocket'],
+    ['🌧️', 'Rain!', p => p.intent === 'rain'],
+    ['❄️', 'Snow!', p => p.intent === 'snow'],
+    ['⚡', 'Lightning!', p => p.intent === 'lightning'],
+    ['🌈', 'Rainbow!', p => p.intent === 'rainbow'],
+    ['☀️', 'Day!', p => p.intent === 'day'],
+    ['🌙', 'Night!', p => p.intent === 'night'],
     ['🎆', 'Fireworks!', p => p.intent === 'fireworks'],
-    ['🪐', `Create a ${color} planet`, p => p.intent === 'createPlanet' && p.color === color],
-    ['🏷️', `Create a planet named ${name}`, p => p.intent === 'createPlanet' && norm(p.name) === norm(name)],
-    ['🌀', 'Open the portal', p => p.intent === 'portal'],
-    ['🛸', `Launch ${n} spaceships`, p => p.intent === 'ships' && p.count === n],
-    ['⚫', 'Create a black hole', p => p.intent === 'blackhole'],
-    ['⚡', 'Warp speed', p => p.intent === 'warp'],
-    ['🌍', `Take me to ${THEMES[world].name}`, p => p.intent === 'travel' && p.world === world],
-  ].filter(([, say]) => say !== challenge.prompt?.say);
-  const [emoji, say, ok] = pick(pool);
+    ['🪐', `${color[0].toUpperCase()}${color.slice(1)} planet!`, p => p.intent === 'createPlanet' && p.color === color],
+    ['🌀', 'Portal!', p => p.intent === 'portal'],
+    ['🛸', `${n} spaceships!`, p => p.intent === 'ships' && p.count === n],
+    ['⚫', 'Black hole!', p => p.intent === 'blackhole'],
+    ['☄️', 'Meteors!', p => p.intent === 'meteors'],
+    ['🌌', 'Aurora!', p => p.intent === 'aurora'],
+    ['👽', 'UFO!', p => p.intent === 'ufo'],
+    ['🌋', 'Earthquake!', p => p.intent === 'earthquake'],
+    ['🪩', 'Disco!', p => p.intent === 'disco'],
+    ['🔄', 'Spin!', p => p.intent === 'spin'],
+  ];
+}
+function makePrompt() {
+  const [emoji, say, ok] = pick(quickPool().filter(([, s]) => s !== challenge.prompt?.say));
   return { emoji, say, ok };
 }
+const windowSecs = () => Math.max(2, 3.5 - challenge.combo * 0.25); // the better you do, the less time you get
 function nextPrompt() {
-  challenge.prompt = makePrompt();
+  challenge.prompt = makePrompt(); challenge.hitIdx = -1;
+  challenge.windowMs = windowSecs() * 1000; challenge.deadline = performance.now() + challenge.windowMs;
   const el = $('#cPrompt'); el.textContent = `${challenge.prompt.emoji} ${challenge.prompt.say}`; el.style.animation = 'none'; void el.offsetWidth; el.style.animation = '';
   ui.renderCards(title(), def(), runTap); hud();
 }
 function startChallenge() {
-  Object.assign(challenge, { running: true, left: CHALLENGE_SECS, combo: 0, bestCombo: 0, correct: 0, prompt: null });
+  Object.assign(challenge, { running: true, left: CHALLENGE_SECS, combo: 0, bestCombo: 0, correct: 0, missed: 0, prompt: null, voice: voice.supported, lastListen: 0, endAt: performance.now() + CHALLENGE_SECS * 1000 });
   state.busy = false; $('#cTime').textContent = challenge.left; $('#cCombo').textContent = '';
-  ui.show('#cbar', true); nextPrompt(); sfx.levelUp();
-  clearInterval(challenge.timer); challenge.timer = setInterval(guard(tickChallenge), 1000);
+  ui.show('#cbar', true); setContinuous(true); nextPrompt(); sfx.levelUp();
+  clearInterval(challenge.timer); challenge.timer = setInterval(guard(tickChallenge), 100);
 }
 function tickChallenge() {
-  if (!challenge.running || state.busy || ui.isShown('#idle')) return; // the clock pauses during warps
-  challenge.left--; $('#cTime').textContent = challenge.left; hud();
-  if (challenge.left <= 5 && challenge.left > 0) sfx.blip();
-  if (challenge.left <= 0) return finish();
-  if (challenge.voice && !voice.listening) listen(); // keep the mic open: talk, talk, talk
+  if (!challenge.running) return;
+  const now = performance.now(), left = Math.max(0, Math.ceil((challenge.endAt - now) / 1000));
+  if (left !== challenge.left) { challenge.left = left; $('#cTime').textContent = left; hud(); if (left <= 5 && left > 0) sfx.blip(); }
+  if (left <= 0) return finish();
+  $('#cWin').style.transform = `scaleX(${Math.max(0, (challenge.deadline - now) / challenge.windowMs)})`;
+  if (now > challenge.deadline) miss('⏱️ Too slow!');
+  // keep the mic open the whole time (Chrome closes it after a silence)
+  if (challenge.voice && !voice.listening && now - challenge.lastListen > 1500) { challenge.lastListen = now; listen(); }
 }
-function stopChallenge() { clearInterval(challenge.timer); challenge.running = false; ui.show('#cbar', false); document.body.classList.remove('challenge'); }
-function checkChallenge(p, heard, source) {
-  const q = challenge.prompt; if (!q) return;
-  if (source === 'voice') challenge.voice = true;
-  if (/\b(skip|pass|next one)\b/.test(norm(heard))) { challenge.combo = 0; $('#cCombo').textContent = ''; ui.chip('⏭️ Skipped'); return nextPrompt(); }
-  if (!q.ok(p)) { challenge.combo = 0; state.streak = 0; hud(); $('#cCombo').textContent = ''; sfx.oops(); return ui.chip(`❌ Not quite! Say: “${q.say}”`, 'bad'); }
+function miss(msg) {
+  challenge.combo = 0; challenge.missed++; state.streak = 0; $('#cCombo').textContent = '';
+  sfx.oops(); ui.chip(`${msg} It was “${challenge.prompt.say}”`, 'bad'); nextPrompt();
+}
+function hit(p, source) {
+  const speed = Math.max(0, (challenge.deadline - performance.now()) / challenge.windowMs);
   challenge.correct++; challenge.combo++; challenge.bestCombo = Math.max(challenge.bestCombo, challenge.combo);
-  const pts = 100 + (challenge.combo - 1) * 25;
+  const pts = 100 + Math.round(speed * 100) + (challenge.combo - 1) * 25; // faster answer + longer combo = more points
   state.score += pts; state.best = challenge.bestCombo; state.streak = challenge.combo; ui.popPoints(pts); sfx.chime();
-  $('#cCombo').textContent = challenge.combo > 1 ? `🔥 ${challenge.combo}x combo` : '';
-  ui.chip(`✅ Correct! ${describe(p).slice(2)}`, 'good');
-  act(p, source); setPending(null);
+  $('#cCombo').textContent = challenge.combo > 1 ? `🔥 ${challenge.combo}x` : '';
+  ui.chip(`✅ ${speed > 0.6 ? 'Lightning fast!' : 'Got it!'} +${pts}`, 'good');
+  act(p, source); setPending(null); pulse(home.theme.rim, state.level === 1 ? 0.05 : 0);
   nextPrompt();
+}
+// Voice: a command counts the moment the partial transcript matches, without waiting for the end of speech.
+function challengeHeard(text, idx, isFinal, alts = [text]) {
+  if (!challenge.running || !challenge.prompt || idx === challenge.hitIdx) return;
+  ui.showHeard(text, !isFinal);
+  for (const a of alts) { const p = parse(a, ctx()); if (challenge.prompt.ok(p)) { challenge.hitIdx = idx; return hit(p, 'voice'); } }
+  if (!isFinal) return;
+  if (/\b(skip|pass)\b/.test(norm(text))) { challenge.hitIdx = idx; return miss('⏭️ Skipped.'); }
+  ui.chip(`❌ Not that one! Say “${challenge.prompt.say}”`, 'bad'); // the clock is the only penalty
+}
+function checkChallenge(p, heard, source) { // typed input
+  if (/\b(skip|pass)\b/.test(norm(heard))) return miss('⏭️ Skipped.');
+  if (challenge.prompt?.ok(p)) hit(p, source); else ui.chip(`❌ Not that one! Say “${challenge.prompt?.say}”`, 'bad');
+}
+function stopChallenge() {
+  clearInterval(challenge.timer);
+  if (challenge.running) { challenge.running = false; setContinuous(false); stopListening(); }
+  ui.show('#cbar', false); document.body.classList.remove('challenge');
 }
 
 export const state = { mode: 'story', started: false, level: 1, score: 0, streak: 0, best: 0, done: new Set(), start: 0, levelDone: false, busy: false };
@@ -159,7 +204,7 @@ export function applyTheme(key) {
   LEVELS[3].intro = `Final level! ${th.name} needs a Galaxy Commander. Try saying: open the portal.`;
   LEVELS[2].missions[0].say = `Create a planet named ${th.hero}`;
   LEVELS[2].missions[2].say = `Add a moon to ${th.hero}`;
-  LEVELS[2].free = `Also try: <q>make ${th.hero} bigger</q>, <q>turn it green</q>, <q>take me to another world</q>`;
+  LEVELS[2].free = `Also try: <q>make ${th.hero} bigger</q>, <q>turn it green</q>, <q>meteor shower</q>, <q>aurora</q>, <q>take me to another world</q>`;
   document.querySelectorAll('.theme').forEach(b => b.classList.toggle('on', b.dataset.theme === home.themeKey));
   $('#worldBtn').textContent = th.emoji; $('#worldBtn').title = `World: ${th.name} (tap to travel)`;
   if (state.started) { ui.renderCards(title(), def(), runTap); hud(); }
@@ -182,7 +227,7 @@ function setLevel(n) {
   scene.fog.near = n === 1 ? 35 : 80; scene.fog.far = n === 1 ? 95 : 260;
   ui.renderCards(title(), def(), runTap); hud(); setMusic(n);
 }
-function resetWorld() { resetHome(); resetSpace(); }
+function resetWorld() { resetHome(); resetSpace(); resetFx(); }
 
 function complete(id, source) {
   const L = def(), m = L.missions.find(x => x.id === id);
@@ -311,6 +356,17 @@ function act(p, source) {
       if (p.world === home.themeKey) return nova(`We are already in ${home.theme.name}! Try another world.`);
       return travelTo(p.world || keys[(keys.indexOf(home.themeKey) + 1) % keys.length]);
     }
+    case 'snow': setSnow(true); sfx.rain(); complete('snow', source); return nova(`Snow is falling on ${home.theme.name}! ❄️`);
+    case 'lightning': strikeLightning(); setTimeout(sfx.boom, 100); complete('lightning', source); return nova('Lightning strike! ⚡');
+    case 'rainbow': showRainbow(); sfx.chime(); complete('rainbow', source); return nova('A beautiful rainbow appears! 🌈');
+    case 'earthquake': quake(); sfx.boom(); complete('earthquake', source); return nova('Earthquake! Hold on tight! 🌋');
+    case 'meteors': meteorShower(); sfx.sparkle(); complete('meteors', source); return nova('Meteor shower! Quick, make a wish! ☄️');
+    case 'aurora': showAurora(); sfx.portal(); complete('aurora', source); return nova('Look up! The aurora is dancing across the sky! 🌌');
+    case 'ufo': summonUfo(); sfx.portal(); complete('ufo', source); return nova('A UFO has arrived! Do not get beamed up! 👽');
+    case 'disco': disco(); sfx.levelUp(); complete('disco', source); return nova("Disco mode! Let's dance! 🪩");
+    case 'zoom': zoom(p.dir); complete('zoom', source); return nova(p.dir === 'out' ? 'Zooming out! 🔭' : 'Zooming in! 🔍');
+    case 'spin': spin(); sfx.whoosh(); complete('spin', source); return nova('Wheee! Spinning around! 🔄');
+    case 'photo': takePhoto(); return nova('Say cheese! Your photo is saved. 📸');
     case 'help': {
       const left = def().missions.filter(m => !state.done.has(m.id));
       return nova(left.length ? `Try saying: ${left.map(m => m.say).join(', or ')}.` : 'You finished this level! Say next level.');
@@ -401,7 +457,7 @@ const handleInput = guard((alternatives, confidence, source) => {
   if (challenge.running) return checkChallenge(p, text, source);
   if (p.intent === 'unknown') {
     state.streak = 0; hud(); sfx.oops();
-    ui.chip('🤔 Not sure what that means', 'bad');
+    ui.chip('🤔 Not sure what that means', 'bad'); brain(text, p, source);
     const left = def().missions.find(m => !state.done.has(m.id));
     nova(`Hmm, I didn't get that. ${left ? `Try saying: ${left.say}.` : 'Say: what can I say?'}`);
     setTimeout(() => ui.setStep(0), 2500);
@@ -411,13 +467,13 @@ const handleInput = guard((alternatives, confidence, source) => {
   ui.chip(describe(p) + (confidence ? ` · ${Math.round(confidence * 100)}% sure` : ''), 'good'); sfx.blip();
   hud();
   const lvl = state.level;
-  setTimeout(guard(() => { if (state.level !== lvl || state.busy) return; ui.setStep(4); suffix = state.mode === 'learn' ? explain(p) : ''; act(p, source); }), 350);
+  setTimeout(guard(() => { if (state.level !== lvl || state.busy) return; ui.setStep(4); suffix = state.mode === 'learn' ? explain(p) : ''; act(p, source); afterAct(p, text, source); }), 350);
 });
 const runTap = guard(m => {
   if (!state.started || state.busy) return;
   if (state.mode === 'challenge') return ui.toast('Say it out loud! 🎤 Tap the mic');
   if (pending) setPending(null);
-  const p = m.tap(); ui.setStep(4); ui.chip(describe(p) + ' · (tapped)', 'good'); act(p, 'tap');
+  const p = m.tap(); ui.setStep(4); ui.chip(describe(p) + ' · (tapped)', 'good'); act(p, 'tap'); afterAct(p, m.say, 'tap');
 });
 
 // ---------- session
@@ -427,19 +483,22 @@ function newSession() {
   state.done.clear(); setLevel(1); ui.setStep(0);
   ui.heardPlaceholder('Tap the mic and talk to NOVA…'); ui.chip('🧠 Waiting for your voice');
   document.body.classList.toggle('challenge', state.mode === 'challenge');
+  document.body.classList.toggle('learn', state.mode === 'learn');
+  $('#brainTitle').textContent = state.mode === 'learn' ? '🧠 NOVA\'s brain (live)' : '🧠 How the AI works';
   $('#finishBtn').hidden = state.mode !== 'free';
   if (state.mode === 'challenge') {
     state.busy = true; // countdown: nothing counts until GO
     nova(`Speed challenge in ${home.theme.name}! Say each command on screen as fast as you can. Ready? Go!`);
     setTimeout(guard(startChallenge), 5500);
-  } else if (state.mode === 'free') nova(`Free play in ${home.theme.name}! Discover all 12 powers in any order. Try: create a planet named ${home.theme.hero}.`);
+  } else if (state.mode === 'free') nova(`Free play in ${home.theme.name}! Discover all ${FREE.missions.length} powers in any order. Try: create a planet named ${home.theme.hero}.`);
   else if (state.mode === 'learn') nova(`Learn AI mode! After every command I will explain how I understood you. ${LEVELS[1].intro}`);
   else nova(LEVELS[1].intro);
 }
 
-// ---------- leaderboard + certificate
-function renderBoard(list) {
-  $('#board').replaceChildren(...list.map(e => {
+// ---------- Hall of Fame (top 10 per mode, kept on this laptop)
+function renderBoard(list, el = $('#board')) {
+  if (!list.length) { const li = document.createElement('li'); li.className = 'empty'; li.textContent = 'No champions yet. Be the first!'; return el.replaceChildren(li); }
+  el.replaceChildren(...list.map(e => {
     const li = document.createElement('li'); if (e.id === state.savedId) li.className = 'me';
     const n = document.createElement('span'); n.textContent = e.name;
     const meta = document.createElement('small'); meta.textContent = `${e.rank} · ${e.world}`;
@@ -447,6 +506,8 @@ function renderBoard(list) {
     li.append(n, meta, sc); return li;
   }));
 }
+function renderHall() { renderBoard(loadBoard('story'), $('#hallStory')); renderBoard(loadBoard('challenge'), $('#hallChallenge')); }
+const openHall = () => { renderHall(); ui.show('#hall', true); };
 function renderTopStrip() {
   const best = m => loadBoard(m)[0], s = best('story'), c = best('challenge'), el = $('#topStrip');
   el.hidden = !s && !c;
@@ -460,35 +521,9 @@ const saveName = guard(e => {
   const { list, place } = addScore(loadBoard(board), { name, ...state.result });
   saveBoard(list, board); state.savedName = name; state.savedId = place ? list[place - 1].id : -1;
   $('#nameInput').value = name; $('#nameInput').disabled = true;
-  renderBoard(list); sfx.chime();
+  renderBoard(list); renderHall(); renderTopStrip(); sfx.chime();
   nova(place ? `Welcome to the leaderboard, ${name}! You are number ${place}!` : `Great job, ${name}! Play again to reach the top 10!`);
 });
-async function downloadCertificate() {
-  const r = state.result; if (!r) return;
-  const name = state.savedName || cleanName($('#nameInput').value);
-  await document.fonts?.ready;
-  const c = document.createElement('canvas'); c.width = 1600; c.height = 900;
-  const g = c.getContext('2d');
-  const back = g.createLinearGradient(0, 0, 1600, 900); back.addColorStop(0, '#070b1a'); back.addColorStop(1, '#2a0f4a');
-  g.fillStyle = back; g.fillRect(0, 0, 1600, 900);
-  for (let i = 0; i < 180; i++) { g.fillStyle = `rgba(255,255,255,${Math.random() * 0.7})`; g.fillRect(Math.random() * 1600, Math.random() * 900, 2, 2); }
-  const edge = g.createLinearGradient(0, 0, 1600, 0); edge.addColorStop(0, '#38e1ff'); edge.addColorStop(1, '#ff4fd8');
-  g.strokeStyle = edge; g.lineWidth = 10; g.strokeRect(40, 40, 1520, 820);
-  const logo = new Image(); logo.src = '/logo.svg';
-  await logo.decode().then(() => g.drawImage(logo, 740, 80, 120, 120)).catch(() => { /* certificate still works without the logo */ });
-  g.textAlign = 'center';
-  g.fillStyle = '#a3b6dc'; g.font = '600 26px Orbitron, sans-serif'; g.fillText('AI EXPERIENCE EXPO · COMMAND THE FUTURE', 800, 250);
-  g.fillStyle = edge; g.font = '800 62px Orbitron, sans-serif'; g.fillText('CERTIFICATE OF COMMAND', 800, 340);
-  g.fillStyle = '#eaf2ff'; g.font = '400 30px Outfit, sans-serif'; g.fillText('This certifies that', 800, 420);
-  g.font = '700 84px Outfit, sans-serif'; g.fillText(name, 800, 520, 1300);
-  g.font = '400 30px Outfit, sans-serif'; g.fillText('built a 3D universe using voice and AI, and earned the rank of', 800, 590);
-  g.fillStyle = '#ffc94d'; g.font = '800 60px Orbitron, sans-serif'; g.fillText(r.rank.toUpperCase(), 800, 675);
-  g.fillStyle = '#a3b6dc'; g.font = '400 26px Outfit, sans-serif';
-  g.fillText(`${r.mode} · Score ${r.score} · Time ${fmt(r.secs)} · World: ${r.world} · ${r.date}`, 800, 760);
-  g.fillText('Tech Nexus · with NOVA, your AI co-pilot', 800, 810);
-  const a = document.createElement('a'); a.href = c.toDataURL('image/png'); a.download = `certificate-${name.replace(/\s+/g, '-')}.png`; a.click();
-  sfx.blip();
-}
 
 // ---------- attract mode (pulls a crowd while nobody plays) + idle reset
 const DEMO = [['“Launch the rocket”', () => launchRocket()], ['“Make it rain”', () => setRain(true)], ['“Make it day”', () => setDay(true)], ['“Fireworks!”', () => fireworks()], ['“Make it night”', () => { setDay(false); setRain(false); }]];
@@ -510,7 +545,7 @@ function stopAttract() {
 function nextExplorer() { location.hash = 'world=' + home.themeKey; location.reload(); } // fresh page = zero leftover state
 setInterval(guard(() => {
   const quiet = performance.now() - lastActivity;
-  if (!state.started && !attractTimer && ui.isShown('#intro') && quiet > 30000) startAttract();
+  if (!state.started && !attractTimer && ui.isShown('#intro') && !ui.isShown('#hall') && quiet > 30000) startAttract();
   if (state.started && !voice.listening && !ui.isShown('#idle') && quiet > 90000) { idleLeft = 10; ui.show('#idle', true); nova('Are you still there? Tap the screen to keep playing.'); }
   if (ui.isShown('#idle')) { $('#idleCount').textContent = idleLeft; if (idleLeft-- <= 0) nextExplorer(); }
 }), 1000);
@@ -528,11 +563,34 @@ function fillVoices() {
 }
 const testVoice = () => { initSfx(); speak("Hi! I'm NOVA, your AI co-pilot. Ready to command the future?"); };
 
+// ---------- Learn AI: the side panel shows, step by step, how NOVA understood the sentence
+function brain(heard, p, source) {
+  if (state.mode !== 'learn') return;
+  const set = (n, text) => { const s = document.querySelector(`.step[data-step="${n}"] small`); if (s) s.textContent = text; };
+  const words = [...new Set(p.kw)].filter(Boolean);
+  const det = [p.name && `name = ${p.name}`, p.color && `colour = ${p.color}`, p.size && `size = ${p.size}`, p.grow && `size = ${p.grow}`, p.count && `number = ${p.count}`,
+    p.world && `world = ${THEMES[p.world]?.name}`, p.target && `planet = ${p.target === 'all' ? 'all' : p.target.name}`, p.dir && `direction = ${p.dir}`].filter(Boolean);
+  const known = p.intent !== 'unknown';
+  set(1, source === 'voice' ? '🎙️ The microphone captured your voice' : source === 'tap' ? '👆 You tapped a card' : '⌨️ You typed it');
+  set(2, `Heard: “${heard}”`);
+  set(3, known ? `Key words ${words.map(w => `“${w}”`).join(', ')} → ${INTENT_NAMES[p.intent]}${det.length ? ' · ' + det.join(' · ') : ''}` : 'No key words I know, so I am not sure 🤔');
+  set(4, known ? `The 3D engine runs: ${INTENT_NAMES[p.intent].toLowerCase()}` : 'Nothing changes');
+  setTimeout(() => set(5, `NOVA says: “${$('#novaText').textContent}”`), 50);
+}
+function afterAct(p, heard, source) { pulse(home.theme.rim, state.level === 1 ? 0.05 : 0); brain(heard, p, source); }
+
+// ---------- photo of the world
+function takePhoto() {
+  sfx.blip();
+  const f = $('#flashFx'); f.style.opacity = 0.9; setTimeout(() => { f.style.opacity = 0; }, 180);
+  photo.cb = url => { const a = document.createElement('a'); a.href = url; a.download = `my-${home.themeKey}-world.png`; a.click(); };
+}
+
 export function bindUI() {
   initVoice({
     onStart() { duck(true); activity(); ui.setListeningUI(true); ui.setStep(1); ui.banner(''); ui.setHeardLabel('🧑 You said'); ui.heardPlaceholder(pending ? 'Listening for your answer…' : 'Listening… speak now!'); if (!pending) ui.chip('🎧 Listening…'); },
-    onInterim(t) { ui.setStep(2); ui.showHeard(t, true); },
-    onFinal(alts, conf) { handleInput(alts, conf, 'voice'); },
+    onInterim(t, i) { if (challenge.running) return challengeHeard(t, i, false); ui.setStep(2); ui.showHeard(t, true); },
+    onFinal(alts, conf, i) { if (challenge.running) return challengeHeard(alts[0], i, true, alts); handleInput(alts, conf, 'voice'); },
     onError(code) {
       const msgs = {
         'not-allowed': '🎤 Microphone is blocked. Click the 🔒 icon in the address bar → allow Microphone, then try again.',
@@ -580,7 +638,6 @@ export function bindUI() {
   $('#finishBtn').onclick = guard(() => { if (state.started && !state.busy) finish(); });
   $('#worldBtn').onclick = guard(() => { if (state.started && !state.busy) { ui.chip('🧠 TRAVEL TO WORLD · (tapped)', 'good'); act({ intent: 'travel', world: null }, 'tap'); } });
   $('#nameForm').onsubmit = saveName;
-  $('#certBtn').onclick = () => downloadCertificate().catch(ui.reportError);
   $('#idleBtn').onclick = () => { activity(); ui.show('#idle', false); };
   addEventListener('pointerdown', () => { activity(); stopAttract(); }, true);
 
@@ -602,5 +659,11 @@ export function bindUI() {
   const world = new URLSearchParams(location.hash.slice(1)).get('world');
   applyTheme(THEMES[world] ? world : 'space');
   renderTopStrip();
+  $('#hallBtn').onclick = openHall; $('#hallOpen').onclick = openHall;
+  $('#hallClose').onclick = () => ui.show('#hall', false);
+  // live: another window/tab on this laptop (e.g. a projector screen) saved a score
+  addEventListener('storage', e => { if (e.key?.startsWith('ctf.leaderboard')) { renderHall(); renderTopStrip(); } });
+  // ?hall = a dedicated full-screen Hall of Fame display
+  if (new URLSearchParams(location.search).has('hall')) { document.body.classList.add('hall-screen'); ui.show('#intro', false); openHall(); setInterval(renderHall, 5000); }
   setLevel(1);
 }

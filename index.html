@@ -24,6 +24,7 @@
     <div class="stat"><span>Streak</span><b id="streak">🔥 0</b></div>
     <div class="stat wide"><span>Missions <i id="doneCount">0/4</i></span><div class="bar"><div id="bar"></div></div></div>
     <button id="viewBtn" class="icon-btn" aria-label="Hide panels to view the whole world" aria-pressed="false" title="View world (H)">👁</button>
+    <button id="hallBtn" class="icon-btn" aria-label="Open the Hall of Fame" title="Hall of Fame">🏆</button>
     <button id="worldBtn" class="icon-btn" aria-label="Travel to another world" title="Travel to another world">🚀</button>
     <button id="soundBtn" class="icon-btn" aria-label="Turn NOVA's voice on or off" title="NOVA voice on/off">🔊</button>
   </div>
@@ -39,7 +40,7 @@
 </aside>
 
 <nav class="pipeline glass" aria-label="How the AI works">
-  <h2>🧠 How the AI works</h2>
+  <h2 id="brainTitle">🧠 How the AI works</h2>
   <div class="step" data-step="1"><span>🎤</span><div><b>You speak</b><small>Microphone records sound</small></div></div>
   <div class="arrow">▼</div>
   <div class="step" data-step="2"><span>📝</span><div><b>Sound → Words</b><small>Speech recognition</small></div></div>
@@ -56,6 +57,7 @@
   <span class="ctime">⏱ <b id="cTime">90</b></span>
   <span class="cprompt" id="cPrompt">Get ready…</span>
   <span class="ccombo" id="cCombo"></span>
+  <span class="cwin"><i id="cWin"></i></span>
 </div>
 
 <div id="toast" role="status" aria-live="polite"></div>
@@ -98,12 +100,13 @@
     <p class="pick-title">2️⃣ Choose a mode</p>
     <div class="modes">
       <button class="mode on" data-mode="story"><span>🎯</span>Story<small>3 levels</small></button>
-      <button class="mode" data-mode="challenge"><span>⚡</span>Speed Challenge<small>90 seconds</small></button>
-      <button class="mode" data-mode="free"><span>🎨</span>Free Play<small>12 powers</small></button>
+      <button class="mode" data-mode="challenge"><span>⚡</span>Speed Challenge<small>60 s · rapid fire</small></button>
+      <button class="mode" data-mode="free"><span>🎨</span>Free Play<small>22 powers</small></button>
       <button class="mode" data-mode="learn"><span>🧠</span>Learn AI<small>NOVA explains</small></button>
     </div>
     <p class="mode-desc" id="modeDesc">Guided missions across 3 levels: your world, a solar system and the galaxy.</p>
     <button id="startBtn" class="cta">🚀 Start mission</button>
+    <button id="hallOpen" class="ghost-btn hall-open" type="button">🏆 Hall of Fame</button>
     <p class="note">Tap the mic, speak, and watch the world change. NOVA talks back!<br>Best in Google Chrome or Edge. No mic? Tap the cards or type.</p>
     <div class="voice-row" id="voiceRow" hidden>
       <label for="voiceSel">🔊 NOVA's voice</label>
@@ -148,6 +151,18 @@
 
 <button id="errBadge" class="err-badge" hidden></button>
 
+<div id="hall" class="overlay hidden">
+  <div class="panel glass hall-panel">
+    <div class="kicker">● Live · updates instantly</div>
+    <div class="big-title">🏆 HALL OF FAME</div>
+    <div class="hall-cols">
+      <div><h3>🎯 Story</h3><ol class="board" id="hallStory"></ol></div>
+      <div><h3>⚡ Speed Challenge</h3><ol class="board" id="hallChallenge"></ol></div>
+    </div>
+    <button id="hallClose" class="cta small">✕ Close</button>
+  </div>
+</div>
+
 <div id="complete" class="overlay hidden">
   <div class="panel glass">
     <div class="kicker" id="cKicker">All 3 levels complete</div>
@@ -165,7 +180,6 @@
     </form>
     <ol class="board" id="board"></ol>
     <div class="end-actions">
-      <button id="certBtn" class="ghost-btn">📜 Download certificate</button>
       <button id="againBtn" class="cta">▶ Next explorer</button>
     </div>
   </div>

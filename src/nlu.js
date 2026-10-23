@@ -102,9 +102,21 @@ export function parse(raw, ctx) {
   if (m(/\b(another|next|different|other) (world|theme)\b|\b(change|switch) (the )?(world|theme)\b|\bthrough the portal\b/)) return out('travel', { world: null });
   if (m(/\bblack ?holes?\b/)) return out(isDestroy || m(/\b(close|stop|remove)\b/) ? 'blackholeOff' : 'blackhole');
   if (m(/\b(warp|hyper ?space|hyper ?drive|light ?speed)\b/)) return out('warp');
+  if (m(/\b(photo|picture|screenshot|selfie|cheese|snapshot)\b/)) return out('photo');
+  if (m(/\b(snow|snowing|snowfall|blizzard)\b/)) return out('snow');
+  if (m(/\b(lightning|thunder|thunderbolt|bolt)\b/)) return out('lightning');
+  if (m(/\brainbow\b/)) return out('rainbow');
+  if (m(/\b(meteors?|meteor shower|shooting stars?|comets?)\b/)) return out('meteors');
+  if (m(/\b(aurora|northern lights|southern lights)\b/)) return out('aurora');
+  if (m(/\b(ufo|ufos|alien|aliens|flying saucer)\b/)) return out('ufo');
+  if (m(/\b(earthquake|quake|tremor)\b/)) return out('earthquake');
+  if (m(/\b(disco|dance|dancing|dj|laser show)\b/)) return out('disco');
+  if (m(/\bzoom ?(in|out)\b|\b(closer|further|farther|zoom)\b/)) return out('zoom', { dir: /\b(out|further|farther)\b/.test(t) ? 'out' : 'in' });
+  if (m(/\b(spin|rotate|turn around|go around|look around)\b/)) return out('spin');
+
   if (m(/\b(portal|wormhole|gate|teleport)\b/)) return out(m(/\b(close|shut)\b/) || isDestroy ? 'portalClose' : 'portal');
-  if (m(/\b(space ?ships?|ships?|ufos?|fleet|spacecrafts?)\b/) || (ctx.level === 3 && m(/\brockets?\b/)))
-    return out('ships', { count: extractCount(t), plural: /(ships|ufos|fleet|rockets|crafts)\b/.test(t) });
+  if (m(/\b(space ?ships?|ships?|fleet|spacecrafts?)\b/) || (ctx.level === 3 && m(/\brockets?\b/)))
+    return out('ships', { count: extractCount(t), plural: /(ships|fleet|rockets|crafts)\b/.test(t) });
   if (m(/\bmoons?\b/) && (isCreate || planetRef || /\b(to|for)\b/.test(t))) return out('moon', { target: resolveTarget(raw, ctx) });
   if (isDestroy && !/\b(rain|storm|clouds?|weather|bubbles?)\b/.test(t)) { m(/\b(planets?|worlds?)\b/); return out('destroy', { target: resolveTarget(raw, ctx) }); }
   if (m(/\b(planets?|worlds?)\b/) || planetRef) {
@@ -130,9 +142,9 @@ export function parse(raw, ctx) {
 export const WORLDS = { cyber: /\b(cyber ?punk|bengaluru|bangalore|neon city)\b/, ocean: /\b(under ?water|ocean|deep sea|sea base)\b/, smart: /\bsmart city\b/, space: /\bspace lab\b/ };
 const TRAVEL = /\b(go|take|travel|switch|change|teleport|move|visit|fly|jump|send|bring)\b/;
 
-export const INTENT_NAMES = { travel: 'TRAVEL TO WORLD', createPlanet: 'CREATE PLANET', destroy: 'DESTROY PLANET', moon: 'ADD MOON', modify: 'CHANGE PLANET', ships: 'LAUNCH SPACESHIPS', rocket: 'LAUNCH ROCKET', rain: 'START RAIN', rainOff: 'STOP RAIN', day: 'MAKE DAY', night: 'MAKE NIGHT', fireworks: 'FIREWORKS', portal: 'OPEN PORTAL', portalClose: 'CLOSE PORTAL', blackhole: 'CREATE BLACK HOLE', blackholeOff: 'REMOVE BLACK HOLE', warp: 'WARP SPEED', help: 'ASK FOR HELP', greet: 'SAY HELLO', whoami: 'ASK NOVA', thanks: 'SAY THANKS', countPlanets: 'COUNT PLANETS', nextLevel: 'NEXT LEVEL', reset: 'RESET WORLD', cancel: 'CANCEL', yes: 'YES', no: 'NO', unknown: 'UNKNOWN' };
+export const INTENT_NAMES = { travel: 'TRAVEL TO WORLD', snow: 'MAKE IT SNOW', lightning: 'LIGHTNING STRIKE', rainbow: 'RAINBOW', earthquake: 'EARTHQUAKE', meteors: 'METEOR SHOWER', aurora: 'AURORA', ufo: 'SUMMON UFO', disco: 'DISCO MODE', zoom: 'ZOOM CAMERA', spin: 'SPIN CAMERA', photo: 'TAKE A PHOTO', createPlanet: 'CREATE PLANET', destroy: 'DESTROY PLANET', moon: 'ADD MOON', modify: 'CHANGE PLANET', ships: 'LAUNCH SPACESHIPS', rocket: 'LAUNCH ROCKET', rain: 'START RAIN', rainOff: 'STOP RAIN', day: 'MAKE DAY', night: 'MAKE NIGHT', fireworks: 'FIREWORKS', portal: 'OPEN PORTAL', portalClose: 'CLOSE PORTAL', blackhole: 'CREATE BLACK HOLE', blackholeOff: 'REMOVE BLACK HOLE', warp: 'WARP SPEED', help: 'ASK FOR HELP', greet: 'SAY HELLO', whoami: 'ASK NOVA', thanks: 'SAY THANKS', countPlanets: 'COUNT PLANETS', nextLevel: 'NEXT LEVEL', reset: 'RESET WORLD', cancel: 'CANCEL', yes: 'YES', no: 'NO', unknown: 'UNKNOWN' };
 // which levels each action works in
-export const AVAIL = { rocket: [1], rain: [1], rainOff: [1], day: [1], night: [1], createPlanet: [2, 3], destroy: [2, 3], moon: [2, 3], modify: [2, 3], countPlanets: [2, 3], portal: [3], portalClose: [3], ships: [3], blackhole: [3], blackholeOff: [3], warp: [3] };
+export const AVAIL = { snow: [1], lightning: [1], rainbow: [1], earthquake: [1], rocket: [1], rain: [1], rainOff: [1], day: [1], night: [1], createPlanet: [2, 3], destroy: [2, 3], moon: [2, 3], modify: [2, 3], countPlanets: [2, 3], portal: [3], portalClose: [3], ships: [3], blackhole: [3], blackholeOff: [3], warp: [3] };
 
 export function describe(p) {
   const d = [];
@@ -142,6 +154,7 @@ export function describe(p) {
   if (p.grow) d.push(`size: ${p.grow}`);
   if (p.count) d.push(`number: ${p.count}`);
   if (p.world) d.push(`world: ${p.world}`);
+  if (p.dir) d.push(`direction: ${p.dir}`);
   if (p.target) d.push(`planet: ${p.target === 'all' ? 'all' : p.target.name}`);
   return `🧠 ${INTENT_NAMES[p.intent] || p.intent}${d.length ? ' · ' + d.join(' · ') : ''}`;
 }

@@ -212,6 +212,11 @@ for (let i = 0; i < WARPN; i++) { const a = rand(0, 6.28), r = rand(1.5, 14), z 
 const warpGeo = new THREE.BufferGeometry(); warpGeo.setAttribute('position', new THREE.BufferAttribute(warpArr, 3));
 const warpLines = new THREE.LineSegments(warpGeo, new THREE.LineBasicMaterial({ color: '#cfeeff', transparent: true, opacity: 0, fog: false }));
 camera.add(warpLines);
+// wormhole tunnel around the camera during warps
+const wormTex = canvasTex(64, 256, g => { for (let i = 0; i < 8; i++) { g.fillStyle = `hsl(${190 + i * 22},100%,62%)`; g.fillRect(0, i * 32, 64, 7); } });
+wormTex.wrapS = wormTex.wrapT = THREE.RepeatWrapping; wormTex.repeat.set(6, 5);
+const worm = new THREE.Mesh(new THREE.CylinderGeometry(7, 7, 220, 32, 1, true), new THREE.MeshBasicMaterial({ map: wormTex, transparent: true, opacity: 0, side: THREE.BackSide, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+worm.rotation.x = Math.PI / 2; worm.position.z = -100; worm.visible = false; camera.add(worm);
 const warp = { t: -1, dur: 3.2 };
 export const isWarping = () => warp.t >= 0;
 // visuals run in the frame loop; game logic runs on timers so it can never stall
@@ -219,7 +224,7 @@ export function startWarp(onMid, onEnd) {
   warp.t = 0;
   const fx = document.querySelector('#flashFx');
   setTimeout(() => { fx.style.opacity = 0.9; setTimeout(() => { fx.style.opacity = 0; }, 250); onMid?.(); }, warp.dur * 500);
-  setTimeout(() => { warp.t = -1; warpLines.material.opacity = 0; onEnd?.(); }, warp.dur * 1000 + 50);
+  setTimeout(() => { warp.t = -1; warpLines.material.opacity = 0; worm.visible = false; onEnd?.(); }, warp.dur * 1000 + 50);
 }
 
 export function resetSpace() {
@@ -309,6 +314,7 @@ export function updateSpace(dt, t) {
   warp.t += dt;
   const power = Math.sin(Math.min(1, warp.t / warp.dur) * Math.PI);
   warpLines.material.opacity = power;
+  worm.visible = power > 0.01; worm.material.opacity = power * 0.75; wormTex.offset.y -= dt * 4 * power; worm.rotation.y += dt * 1.5;
   const speed = 220 * power, len = 2 + power * 30;
   for (let i = 0; i < WARPN; i++) {
     const j = i * 6; warpArr[j + 2] += speed * dt; if (warpArr[j + 2] > -1) warpArr[j + 2] = -160;

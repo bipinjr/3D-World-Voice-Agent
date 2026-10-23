@@ -4,7 +4,7 @@ const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 const synth = 'speechSynthesis' in window ? window.speechSynthesis : null;
 
 export const voice = { supported: !!SR, listening: false, ttsOn: true };
-let rec = null, h = {}, starting = false, startTimer = 0, gotResult = false, errored = false;
+let rec = null, h = {}, starting = false, startTimer = 0, gotResult = false, errored = false, lastFinal = -1;
 
 export function initVoice(handlers) {
   h = handlers;
@@ -16,12 +16,14 @@ export function initVoice(handlers) {
   } catch { rec = null; voice.supported = false; return; }
   rec.onstart = () => { starting = false; clearTimeout(startTimer); voice.listening = true; safe(h.onStart); };
   rec.onresult = e => {
-    const res = e.results[e.results.length - 1]; if (!res) return;
-    if (!res.isFinal) return safe(h.onInterim, res[0]?.transcript || '');
-    if (gotResult) return;
-    gotResult = true;
-    const alts = Array.from(res, a => (a.transcript || '').trim()).filter(Boolean);
-    if (alts.length) safe(h.onFinal, alts, res[0].confidence || 0);
+    for (let i = e.resultIndex || 0; i < e.results.length; i++) {
+      const res = e.results[i]; if (!res) continue;
+      if (!res.isFinal) { safe(h.onInterim, res[0]?.transcript || '', i); continue; }
+      if (i <= lastFinal) continue; // Chrome sometimes repeats a final result
+      lastFinal = i; gotResult = true;
+      const alts = Array.from(res, a => (a.transcript || '').trim()).filter(Boolean);
+      if (alts.length) safe(h.onFinal, alts, res[0].confidence || 0, i);
+    }
   };
   rec.onerror = e => { errored = true; safe(h.onError, e.error); };
   rec.onend = () => { starting = false; clearTimeout(startTimer); voice.listening = false; safe(h.onEnd, gotResult, errored); };
@@ -33,7 +35,7 @@ export function listen() {
   if (!rec) return safe(h.onUnsupported);
   if (voice.listening || starting) { try { rec.stop(); } catch { /* not running */ } return; }
   cancelSpeech(); // so NOVA doesn't hear herself
-  gotResult = false; errored = false; starting = true;
+  gotResult = false; errored = false; lastFinal = -1; starting = true;
   try { rec.start(); }
   catch { setTimeout(() => { try { rec.start(); } catch { starting = false; } }, 300); } // Chrome needs a beat after the last session
   clearTimeout(startTimer);
@@ -41,6 +43,8 @@ export function listen() {
   startTimer = setTimeout(() => { starting = false; }, 15000);
 }
 export const stopListening = () => { try { rec?.abort(); } catch { /* idle */ } };
+// continuous = the mic stays open between phrases (speed challenge)
+export function setContinuous(on) { if (rec && rec.continuous !== on) { stopListening(); rec.continuous = on; } }
 
 // ---------- NOVA's voice
 let novaVoice = null, speakSeq = 0;

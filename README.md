@@ -40,11 +40,14 @@ Voice recognition needs **Google Chrome or Edge** with **internet**. Everything 
 | Mode | What happens |
 |---|---|
 | 🎯 Story | 3 guided levels: your world, a solar system, the galaxy |
-| ⚡ Speed Challenge | 90 seconds. Say each command on screen as fast as you can; combos give bonus points. The mic re-opens by itself between commands. |
-| 🎨 Free Play | Everything unlocked: discover all 12 powers in any order. NOVA warps between your world and space by herself. |
-| 🧠 Learn AI | The story levels, but NOVA explains how she understood each sentence |
+| ⚡ Speed Challenge | 60 seconds of rapid-fire commands ("Snow!", "UFO!", "Red planet!"). Each one has a window that shrinks from 3.5 s to 2 s as your combo grows. The mic stays open and a command counts the moment NOVA hears it. Faster answers score more. |
+| 🎨 Free Play | Everything unlocked: discover all 22 powers in any order. NOVA warps between your world and space by herself. |
+| 🧠 Learn AI | The story levels, but the side panel becomes NOVA's live brain: what she heard, the key words she found, the meaning, the details and what the 3D engine did |
 
-Story and Challenge have their own top-10 leaderboard on the laptop. Every finisher can download a certificate image.
+**🏆 Hall of Fame:** Story and Speed Challenge each keep a top-10 on the laptop. Open it with the 🏆 button. It updates live, so open `https://3d-world-voice-agent.vercel.app/?hall` on a second screen or projector for a full-screen Hall of Fame that changes the moment someone saves a score.
+
+## Extra powers (work in Free Play, the Speed Challenge and Story)
+❄️ make it snow · ⚡ lightning · 🌈 rainbow · 🌋 earthquake · ☄️ meteor shower · 🌌 aurora / northern lights · 👽 summon a UFO · 🪩 let's dance (disco) · 🔍 zoom in / zoom out · 🔄 spin around · 📸 take a photo (saves a picture of your world)
 
 ## Worlds (connected through every level)
 🚀 Space Lab · 🌆 Cyberpunk Bengaluru · 🐠 Underwater Base · 🏙️ Smart City
